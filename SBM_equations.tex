@@ -1,0 +1,287 @@
+\documentclass[10pt]{article}
+
+%\setlength{\columnsep}{0.5cm}
+%\setlength\textwidth{\dimexpr (8.6cm)*2 + 0.5cm\relax}
+
+\usepackage{ragged2e}
+
+\usepackage{abstract}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{natbib}
+\usepackage{subcaption}
+%\usepackage{arxiv}
+\usepackage[draft]{todonotes}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{multirow}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{lipsum}
+\usepackage{xcolor}
+\usepackage{dsfont}
+\usepackage[left=1.5cm,right=1.5cm,top=1.5cm,bottom=1.5cm]{geometry}
+%\usepackage[paperwidth=210mm,
+%            paperheight=297mm,
+%            left=50pt,
+%            top=50pt,
+%            textwidth=345pt,
+%            marginparsep=25pt,
+%            marginparwidth=124pt,
+%            textheight=692pt,
+%            footskip=50pt]
+%           {geometry}
+%\graphicspath{{../Figures/}}
+
+\definecolor{darkgreen}{rgb}{0, 0.5, 0} 
+\definecolor{darkred}{rgb}{0.5, 0, 0} 
+
+\title{SBM Laplace prior for concentration matrix}
+
+
+
+\begin{document}
+\newcommand*{\norm}[1]{\left\lVert{#1}\right\rVert}
+
+\maketitle
+
+\section{Model}
+
+Data: $X$, $i\in \{ 0,...,n \}$ observations. $X \sim \mathcal{N}(0, \Sigma^{-1} = \Omega)$, $\Omega$ concentration matrix. Assumption: $Q$ hidden clusters in the data. For each observation $i$, $Z_{iq} = \mathds{1}_{i\in q}$, $ q\in \{ 1,...,Q \}$. $Z_{iq}$ = independant latent variables.
+
+\begin{itemize}
+	\item $\alpha_q = \mathbb{P}(i\in q)$ (Probability that observation i belongs to cluster q); 
+	\item $\sum_q \alpha_q = 1 $;
+	\item $ \underline{Z_i} \sim \mathcal{M}(1, \underline{\alpha})$ with $\underline{\alpha} = (\alpha_1, ..., \alpha_Q)$  and $\underline{Z_i} = (Z_{i1}, ..., Z_{iQ})$
+\end{itemize}
+
+Assumption: 
+
+\[ \Omega_{ij}| \{ Z_{iq}Z_{jl} \} \sim Laplace(0, \lambda_{ql}), ~~ (i,j) \in \{ 1,...,n \}^2, (q,l)\in \{ 1,...,Q \}^2 \]
+
+Laplace distribution: 
+
+\[ \forall x \in \mathbb{R},~~ 
+f_{ql}(x) = \frac{1}{\lambda_{ql}} \exp{-\frac{|x|}{2\lambda_{ql}}} ~~ \text{if} ~~ q \neq l 
+~~\text{and} ~~
+f_0{x} = \frac{1}{\lambda_{0}} \exp{-\frac{|x|}{2\lambda_{0}}} ~~ \text{otherwise}\]
+
+where $\lambda_{ql}, \lambda_0 > 0$ are scaling parameters and $\lambda_{ql} = \lambda_{lq}$. $\Lambda$ matrix of parameters $\lambda_{ql}$, $(q,l) \in \{1,...,Q\}^2$.
+
+
+
+\section{Complete likelihood}
+
+Assumptions reminder:
+
+\[ X|\Omega \sim \mathcal{N}(O, \Omega^{-1}),~~ \Omega|Z \sim Laplace(0, \Lambda),~~ Z \sim \mathcal{M}(1,\underline{\alpha}) \]
+
+Complete likelihood decomposition:
+\begin{align*}
+L_c(X, \Omega, Z) &= \mathbb{P}(X,\Omega, Z) \\
+           & =  \mathbb{P}(X|\{\Omega, Z\})\mathbb{P}(\Omega|Z)\mathbb{P}(Z) ~~ \text{conditional probabilities definition/formula} \\
+           & =  \mathbb{P}(X|\Omega)\mathbb{P}(\Omega|Z)\mathbb{P}(Z) \\
+\end{align*}
+
+$\mathbb{P}(X| \{ \Omega, Z \}) =  \mathbb{P}(X|\Omega)$, known distribution (knowing $Z$ is equivalent to know $\Omega ?$). 
+
+Complete log-likelihood formula: (when $i \neq j$, otherwise replace $\lambda_{ql}$ with $\lambda_0$)
+\begin{align*}
+\log L_c(X, \Omega, Z) &= \log \mathbb{P}(X,\Omega, Z) \\
+           & =  \underbrace{\log \mathbb{P}(X|\Omega)}_{(1)}+ \underbrace{\log \mathbb{P}(\Omega|Z)}_{(2)} + \underbrace{\log \mathbb{P}(Z)}_{(3)} \\
+           & = \frac{n}{2} \left( \log(|\Omega|) - tr(S\Omega)  - p\log(2\pi) \right) +  \sum_{q,l,i,j , i \neq j} Z_{iq}Z_{jl}\left( -\log (2\lambda_{ql}) - \frac{|\Omega_{ij}|}{\lambda_{ql}} \right) \\
+           & + \sum_{i = 1}^n \sum_{q = 1}^Q Z_{iq} \log \alpha_q
+\end{align*}
+
+Penalty term (lasso approach) in the article: $\sum_{q,l,i,j , i \neq j} Z_{iq}Z_{jl}\frac{|\Omega_{ij}|}{\lambda_{ql}}$. In the paper: notation $\norm{\rho_Z(\Omega)}_{l_1}$.
+
+\paragraph{(1):}  $X|\Omega \sim \mathcal{N}(0, \Omega^{-1})$
+
+Notation: $|\Omega| = det(\Omega) = 1/|\Omega^{-1}|$
+%\begin{align*}
+%\log \mathbb{P}(X|\Omega) &= \log \left( \frac{1}{(2\pi)^{\frac{n}{2}} |\Omega|}  \exp(x^{T} \Omega^{-1} x) \right) \\
+%		& = -\frac{n}{2} \left( \log(2\pi) - \log(|\Omega^{-1}| \right) + x^{T} \Omega^{-1} x \\ 
+%		& = -\frac{n}{2} \left( \log(2\pi) + \log(|\Omega|) \right) + x^{T} \Omega^{-1} x \\ 
+%\end{align*}
+
+\begin{align*}
+\log \mathbb{P}(X|\Omega) &= \sum_{i=1}^n \log \left( \frac{1}{(2\pi)^{\frac{p}{2}} |\Omega^{-1}|}  \exp(\frac{1}{2} x_i^{T} \Omega x_i) \right) \\
+		& = -\frac{n}{2} \left( p\log(2\pi) + \log(|\Omega^{-1}| \right) - \frac{1}{2}tr(X^TX\Omega) \\ 
+		& = -\frac{n}{2} \left( p\log(2\pi) - \log(|\Omega|) \right) - \frac{n}{2}tr(S\Omega)~ \text{En notant } S = \frac{1}{n}X^TX \\ 
+		& = \frac{n}{2} \left( - p\log(2\pi) + \log(|\Omega|) \right) - \frac{n}{2}tr(S\Omega) \\ 
+		& = \frac{n}{2} \left( \log(|\Omega|) - tr(S\Omega)  - p\log(2\pi) \right) \\
+\end{align*}
+
+
+\paragraph{(2):}  $\Omega|Z \sim Laplace(0, \Lambda)$
+
+If $i\neq j$:
+\begin{align*}
+\log \mathbb{P}(\Omega|Z) &= \log \prod_{i,j,q,l} \mathbb{P}(\Omega_{ij}|\{Z_{iq}Z_{jl}\})^{Z_{iq}Z_{jl}}~ \text{Astuce termes puissance 0 ne participent pas au produit} \\ 
+	& = \sum_{\substack{q,l,i,j \\ i \neq j}} Z_{iq}Z_{jl}\left( -\log (2\lambda_{ql}) - \frac{|\Omega_{ij}|}{\lambda_{ql}} \right) \\
+	& = - \underbrace{\sum_{\substack{q,l,i,j \\ i \neq j}} Z_{iq}Z_{jl}\log (2\lambda_{ql})}_{\sum_{q,l} n_{ql} \log(2\lambda_{ql})} - \underbrace{\sum_{\substack{q,l,i,j \\ i \neq j}} Z_{iq}Z_{jl}\frac{|\Omega_{ij}|}{\lambda_{ql}}}_{\norm{\rho_Z(\Omega)}_1} \\
+\end{align*}
+
+Otherwise: 
+\[ \log \mathbb{P}(\Omega|Z) = \sum_{i} \left( -\log (2\lambda_{0}) - \frac{|\Omega_{ii}|}{\lambda_{0}} \right) \]
+
+
+\paragraph{(3):} $Z \sim \mathcal{M}(1,\underline{\alpha})$
+
+\begin{align*}
+\log \mathbb{P}(Z) &= \log \prod_{i = 1}^n \mathbb{P}(Z_i) = \log \prod_{i = 1}^n \prod_{q = 1}^Q \alpha_q^{Z_{iq}} \\
+	&=  \sum_{i = 1}^n \sum_{q = 1}^Q \log \alpha_q^{Z_{iq}} =  \sum_{i = 1}^n \sum_{q = 1}^Q Z_{iq} \log \alpha_q \\
+\end{align*}
+
+\section{EM algorithm and variational estimation}
+
+\paragraph{Steps}
+
+\begin{enumerate}
+	\item Expectation (E): Calculate the expected value of the likelihood under the current parameters. Estimate $Z_i$, knowing $\Omega$ from previous step.
+	\item Maximization (M): Find parameters that maximizes the likelihood. Compute parameters knowing $Z_i$.
+\end{enumerate}
+
+\subsection{Definitions} 
+Let $\mathcal{Z}$ the space of all possibilities. 
+
+Definitions give us: 
+\[ \log \mathbb{P}(Z|X, \Omega) = \log \mathbb{P}(X,\Omega, Z) - \log \mathbb{P}(X, \Omega) \]
+
+\subsection{E step: impossibility of direct compuation and variational approach} 
+In this part, $\Omega$ is known (as $\Omega^{(t)}$) from a previous M step.
+
+Considering $\mathbb{P}(X, \Omega)$ being constant with respect to $Z$: 
+
+\begin{align*}
+\log \mathbb{P}(X, \Omega) &= \log \mathbb{P}(X,\Omega, Z) - \log \mathbb{P}(Z|X, \Omega) \\
+	&= \mathbb{E}_{Z|\Omega^(t)}[\log \mathbb{P}(X,\Omega, Z)] - \mathbb{E}_{Z|\Omega^(t)}[\log \mathbb{P}(Z|X, \Omega)] \\
+ 	&= \sum_{z\in \mathcal{Z}} \mathbb{P}(Z=z | \Omega^{(t)})\log \mathbb{P}(X,\Omega, Z) - \sum_{z\in \mathcal{Z}} \mathbb{P}(Z=z | \Omega^{(t)}) \log \mathbb{P}(Z|X, \Omega) \\ 	 	
+ 	& = \mathbb{E}_{Z|\Omega^(t)}[\log \mathbb{P}(X,\Omega, Z)] - \mathcal{H}(Z|X) \\
+\end{align*}
+
+The expected complete likelihood under the current parameters is:
+
+\[ \mathcal{Q}(\Omega| \Omega^{(t)}) = \mathbb{E}_{Z|\Omega^(t)}[\log \mathbb{P}(X,\Omega, Z)] = \sum_{z\in \mathcal{Z}} \mathbb{P}(Z=z | \Omega^{(t)})\log \mathbb{P}(X,\Omega, Z)\]
+
+$\mathbb{P}(Z_{iq}Z_{jl} = 1 | \Omega_{ij}^{(t)})$ is unknown as $Z_{iq}$ and $Z_{jl}$ are not independant. Variational approach: take an approximation for $\mathbb{P}(Z|\Omega^{t}):= R_t(Z)$ for E step. 
+
+Now we consider the lower bond $\mathcal{J}$ of $\mathbb{P}(X, \Omega)$:
+\[ \mathcal{J}_\tau(X, \Omega,  R(Z)) := \log \mathbb{P}(X, \Omega) - D_{KL}\{ R(Z) || \mathbb{P}(Z|\Omega) \}, \]
+where $D_{KL}\{ R(Z) || \mathbb{P}(Z|\Omega) \}$ is the Küllback-Leibler divergence (i.e. distance between these two distributions). We take the following distribution for $R(.)$\footnote{cf. Mariadassous and Robin, Uncovering latent structure in valued graphs: a variational approach, Technical Report 10, Statistics for Systems Biology, 2007}
+\[ R_\tau (Z) = \prod_{i = 1}^n h_{\underline{\tau_i}}(Z_i), \]
+where $h_{\underline{\tau_i}}$ is the density of the multinomial probability distribution $\mathcal{M}(1,\underline{\tau_i})$ and $\underline{\tau_i} = (\tau_{i1}, ..., \tau_{iQ})$ is a random vector containing the parmeters to optimize in the variational approach. Approximation of the probability that vertex $i$ belongs to cluster $q$, $\tau_{iq}$ estimates $\mathbb{P}(Z_{iq} = 1 | \Omega)$, under the constraint $\sum_q \tau_{iq} = 1$ .
+
+Küllback-Leibler divergence:
+
+\begin{align*}
+D_{KL}\{ R_\tau(Z) || \mathbb{P}(Z|\Omega) \} &= \sum_{Z \in \mathcal{Z}} R_\tau(Z) \log \frac{R_\tau(Z)}{\mathbb{P}(Z|\Omega)}  \\
+&= \sum_{Z \in \mathcal{Z}} R_\tau(Z) \left( \log R_\tau(Z) - \log \mathbb{P}(Z|\Omega) \right) \\
+&= -\mathcal{H}(R_\tau (Z)) -  \sum_{Z \in \mathcal{Z}} R_\tau(Z) \log \mathbb{P}(Z|\Omega) \\
+\end{align*}
+
+New formula for the bound\footnote{En considérant que $\mathbb{P}(Z|\Omega) = \mathbb{P}(Z|\Omega, X)$ et en remarquant que $\log \mathbb{P}(X,  \Omega)$ est indep de $Z$}: 
+
+\begin{align*}
+\mathcal{J}_\tau(X, \Omega,  R(Z)) &= \log \mathbb{P}(X, \Omega) - D_{KL}\{ R(Z) || \mathbb{P}(Z|\Omega) \} \\
+&= \log \mathbb{P}(X, \Omega) + \mathcal{H}(R_\tau (Z)) +  \sum_{Z \in \mathcal{Z}} R_\tau(Z) \log \mathbb{P}(Z|\Omega) \\
+&= \mathcal{H}(R_\tau (Z)) +  \sum_{Z \in \mathcal{Z}} R_\tau(Z) \left( \log \mathbb{P}(Z|\Omega) +\log \mathbb{P}(X, \Omega) \right)\\
+&= \mathcal{H}(R_\tau (Z)) +  \underbrace{\sum_{Z \in \mathcal{Z}} R_\tau(Z) \log L_c(X, \Omega, Z)}_{\hat{Q}_\tau(\Omega) = \mathbb{E}_{\mathcal{R}_\tau}[\log \mathbb{P}(X, \Omega, Z)]} \\
+\end{align*}
+
+Objective: maximization of $\mathcal{J}(X, \Omega,  R(Z))$. 
+
+\paragraph{Expression for $\hat{Q}_\tau(\Omega)$} Assume $R_\tau (Z) = \prod_{i = 1}^n h_{\underline{\tau_i}}(Z_i)$
+
+\begin{align*}
+\hat{Q}_\tau(\Omega) &= \sum_{Z \in \mathcal{Z}} R_\tau(Z) \log L_c(X, \Omega, Z) = \mathbb{E}_{R_\tau}[\log L_c(X, \Omega, Z)] \\
+	&=  \frac{n}{2} \left( \log(|\Omega|) - tr(S\Omega)  - p\log(2\pi) \right) + \sum_{i,j = 1,  j\neq i}^n \sum_{q,l = 1}^Q\tau_{iq}\tau_{jl}\left( -\log (2\lambda_{ql}) - \frac{|\Omega_{ij}|}{\lambda_{ql}}\right)  +  \sum_{i = 1}^n \sum_{q = 1}^Q \tau_{iq} \log \alpha_q   \\
+\end{align*}
+
+
+\paragraph{Expression for $\mathcal{H}(R_\tau (Z))$} Assume $R_\tau (Z) = \prod_{i = 1}^n h_{\underline{\tau_i}}(Z_i)$
+
+\begin{align*}
+\mathcal{H}(R_\tau (Z)) &= -\sum_{i = 1}^n \sum_{q = 1}^Q  \mathbb{P}(Z_{iq} = 1) \log  \mathbb{P}(Z_{iq} = 1) \\
+	&= -\sum_{i = 1}^n \sum_{q = 1}^Q  \tau_{iq} \log  \tau_{iq} \\
+\end{align*}
+
+\paragraph{Complete expression of $\mathcal{J}_\tau(X, \Omega,  R(Z))$}
+
+\begin{align*}
+\mathcal{J}_\tau(X, \Omega,  R(Z)) &= \mathcal{H}(R_\tau (Z)) + \hat{Q}_\tau(\Omega) \\
+	&=  \underbrace{\frac{n}{2} \left( \log(|\Omega|) - tr(S\Omega)  - p\log(2\pi) \right)}_{\text{Constant par rapport à Z, et autres, désigné par c dans l'article}} \\
+	& + \sum_{\substack{i,j = 1 \\  j\neq i}}^n \sum_{q,l = 1}^Q\tau_{iq}\tau_{jl}\left( -\log (2\lambda_{ql}) - \frac{|\Omega_{ij}|}{\lambda_{ql}}\right)  +  \sum_{i = 1}^n \sum_{q = 1}^Q \tau_{iq} \log \alpha_q  - \sum_{i = 1}^n \sum_{q = 1}^Q  \tau_{iq} \log  \tau_{iq}\\
+\end{align*}
+
+Similar to the one in the complete likelihood expression, the penalty term is: $\sum_{i,j = 1,  j\neq i}^n \sum_{q,l = 1}^Q\tau_{iq}\tau_{jl}\frac{|\Omega_{ij}|}{\lambda_{ql}}$.
+
+\subsection{E step: parameters estimation}
+
+Strategy: estimate $\tau_{iq}$ with fixed $\alpha_{q}$ and $\lambda_{lq}$, then estimate  $\alpha_{q}$ and $\lambda_{lq}$ considering $\hat{\tau}_{iq}$.
+
+\paragraph{Estimating $\hat{\tau}_{iq}$:}
+
+Introducing the constraint using Lagrange multiplier method. Constraint: $\sum_q \tau_{iq} = 1$.
+
+\[ \frac{\partial\mathcal{J}_\tau(X, \Omega, Z) - \lambda(\sum_{q=1}^{Q} \tau_{iq} - 1)}{\partial \tau_{iq}} = \sum_{\substack{j = 1 \\  j\neq i}}^n \sum_{l = 1}^Q \tau_{jl}\left( -\log (2\lambda_{ql}) - \frac{|\Omega_{ij}|}{\lambda_{ql}}\right)  + \log \alpha_q  - 1 - \log  \tau_{iq} - \lambda \]
+
+\begin{align*}
+\tau_{iq} = \exp \left[ \sum_{\substack{j = 1 \\  j\neq i}}^n \sum_{l = 1}^Q \tau_{jl}\left( -\log (2\lambda_{ql}) - \frac{|\Omega_{ij}|}{\lambda_{ql}}\right)  +  \log \alpha_q  - 1 - \lambda \right] 
+	 & = \exp(-1) \exp(-\lambda) \alpha_q \exp \left[  \sum_{\substack{j = 1 \\  j\neq i}}^n \sum_{l = 1}^Q \tau_{jl}\left( -\log (2\lambda_{ql}) - \frac{|\Omega_{ij}|}{\lambda_{ql}}\right)\right] \\
+	= \exp(-1)\exp(-\lambda)\alpha_q \prod_{\substack{j = 1 \\  j\neq i}}^n \prod_{l = 1}^Q \exp \left[\tau_{jl} \left(-\log (2\lambda_{ql}) - \frac{|\Omega_{ij}|}{\lambda_{ql}}\right)\right] 
+	&= \exp(-1)\exp(-\lambda)\alpha_q \prod_{\substack{j = 1 \\  j\neq i}}^n \prod_{l = 1}^Q \left( \frac{1}{2\lambda_{ql}} \exp\left(\frac{-|\Omega_{ij}|}{\lambda_{ql}} \right) \right)^{\tau_{jl}} \\
+\end{align*}
+
+Using the constraint to find $\lambda$: 
+
+\begin{align*}
+\sum_{q=1}^Q \tau_{iq} = 1 &= \exp(-1)\exp(-\lambda)\alpha_q \prod_{\substack{j = 1 \\  j\neq i}}^n \prod_{l = 1}^Q \left( \frac{1}{2\lambda_{ql}} \exp\left(\frac{-|\Omega_{ij}|}{\lambda_{ql}} \right) \right)^{\tau_{jl}} \\
+\Rightarrow \exp(\lambda) &= \left[ \sum_{q=1}^Q  \exp(-1)\alpha_q \prod_{\substack{j = 1 \\  j\neq i}}^n \prod_{l = 1}^Q \left( \frac{1}{2\lambda_{ql}} \exp\left(\frac{-|\Omega_{ij}|}{\lambda_{ql}} \right) \right)^{\tau_{jl}}\right]^{-1} \\
+\end{align*}
+
+\[\boxed{\hat{\tau}_{iq} = \frac{\exp(-1) \alpha_q \prod_{\substack{j = 1 \\  j\neq i}}^n \prod_{l = 1}^Q \left( \frac{1}{2\lambda_{ql}} \exp\left(\frac{-|\Omega_{ij}|}{\lambda_{ql}} \right) \right)^{\tau_{jl}}}{\sum_{q=1}^Q  \exp(-1)\alpha_q \prod_{\substack{j = 1 \\  j\neq i}}^n \prod_{l = 1}^Q \left( \frac{1}{2\lambda_{ql}} \exp\left(\frac{-|\Omega_{ij}|}{\lambda_{ql}} \right) \right)^{\tau_{jl}}}} \]
+
+In the paper: 
+
+\[\boxed{\hat{\tau}_{iq} \propto \alpha_q \prod_{\substack{j = 1 \\  j\neq i}}^n \prod_{l = 1}^Q \left( \frac{1}{2\lambda_{ql}} \exp\left(\frac{-|\Omega_{ij}|}{\lambda_{ql}} \right) \right)^{\tau_{jl}}} \]
+
+
+\paragraph{Estimating $\hat{\alpha}_{q}$:} With constraint $\sum_q \alpha_q = 1$.
+
+\[ \left. \frac{\partial\mathcal{J}_\tau(X, \Omega, Z)}{\partial \alpha_q}  \right| _{\tau_{iq}} = \sum_{i=1}^n \sum_{q = 1}^Q \tau_{iq} \frac{1}{\alpha_q}\]
+The value if $\alpha_q$ will be derived from the following expression:
+\[ \left. \frac{\partial\mathcal{J}_\tau(X, \Omega, Z)- \eta (\sum_q \alpha_q - 1)}{\partial \alpha_q}  \right| _{\tau_{iq}}  = \sum_{i=1}^n \tau_{iq} \frac{1}{\alpha_q} - \eta  \]
+
+\begin{align*}
+0 = \sum_{i=1}^n  \tau_{iq} \frac{1}{\alpha_q} - \eta &\Leftrightarrow \alpha_q  =  \frac{\sum_i \tau_{iq}}{\eta} \\
+\Leftrightarrow \sum_q \alpha_q  =  \frac{ \sum_q \sum_i \tau_{iq}}{\eta} &\Leftrightarrow 1  =  \frac{n}{\eta} \Leftrightarrow \boxed{\eta  =  n} \\
+0 = \sum_{i=1}^n  \tau_{iq} \frac{1}{\alpha_q} - \eta &\Leftrightarrow \alpha_q  =  \frac{\sum_i^n \tau_{iq}}{\eta} \\
+\end{align*}
+
+\[ \boxed{\hat{\alpha}_q  =  \frac{\sum_i^n \tau_{iq}}{n}}\]
+
+\paragraph{Estimating $\hat{\lambda}_{lq}$:}
+
+\[ \left. \frac{\partial\mathcal{J}_\tau(X, \Omega, Z)}{\partial \lambda_{ql}}  \right| _{\tau_{iq}} = \sum_{\substack{j = 1 \\  j\neq i}}^n \tau_{iq}\tau_{jl}\left( -\frac{1}{2\lambda_{ql}} + \frac{|\Omega_{ij}|}{\lambda_{ql}^2}\right)\]
+
+\begin{align*}
+0 &=  \sum_{\substack{j = 1 \\  j\neq i}}^n \tau_{iq}\tau_{jl}\left( -\frac{1}{2\lambda_{ql}} + \frac{|\Omega_{ij}|}{\lambda_{ql}^2}\right) \\
+\Rightarrow 0	& = \sum_{\substack{j = 1 \\  j\neq i}}^n \tau_{iq}\tau_{jl}\left( -\frac{1}{2} + \frac{|\Omega_{ij}|}{\lambda_{ql}}\right) \\
+\end{align*}
+
+\[ \boxed{\hat{\lambda}_{ql} = \frac{\sum_{\substack{j = 1 \\  j\neq i}}^n  \tau_{iq}\tau_{jl} |\Omega_{ij}|}{\sum_{\substack{j = 1 \\  j\neq i}}^n \tau_{iq}\tau_{jl}}   }\]
+
+
+\end{document}
