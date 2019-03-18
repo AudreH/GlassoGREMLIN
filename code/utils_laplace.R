@@ -20,8 +20,12 @@ dlaplace <- function(x, mean = 0, sd = 1) {
 rSBMLaplace <- function(p, Lambda, alpha = c(1)) {
   Q <- length(alpha)
   Z <- t(rmultinom(p, 1, prob = alpha))
-  A <- dlaplace(Z %*% Lambda %*% t(Z))
-  diag(A) <- 0
+  A <- matrix(0, p, p)
+  subset <- upper.tri(A)
+  lambda <- (Z %*% Lambda %*% t(Z))[subset]
+  x <- rmutil::rlaplace(n=p*(p-1)/2, m = 0, s = lambda)
+  A[subset] <- x
+  A <- A + t(A)
   mySBM <- graph_from_adjacency_matrix(A, weighted = TRUE, mode = "undirected")
   vertex_attr(mySBM, "membership") <- Z %*% 1:Q
   mySBM

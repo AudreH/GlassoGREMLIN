@@ -6,7 +6,6 @@ entropy <- function(distr) {
 VEM_SBM_laplace <- function(G, Q, cl.init = kmeans(Omega, centers = Q, nstart = 10)$cl, eps = 1e-5, maxIter = 50){
 
   stopifnot(is.igraph(G))
-
   ## Initialization
   p <- gorder(G)
   J <- vector("numeric", maxIter)
@@ -27,12 +26,13 @@ VEM_SBM_laplace <- function(G, Q, cl.init = kmeans(Omega, centers = Q, nstart = 
     alpha[alpha < zero] <- zero
     list(Lambda = Lambda, alpha = alpha)
   }
+  
   ### E step: update the clustering parameters (tau)
   E_step <- function(theta, tau){
     alpha  <- theta$alpha
     Lambda <- theta$Lambda
     tau <- matrix(log(alpha), p, Q, byrow = TRUE) - 
-              matrix(1, p, p) %*% tau %*% log(2 * theta$Lambda) - abs(Omega) %*% tau %*% (1/theta$Lambda)
+              (1 - diag(1, p, p)) %*% tau %*% log(2 * theta$Lambda) - abs(Omega) %*% tau %*% (1/theta$Lambda)
     tau <- exp(tau - apply(tau, 1, max))
     tau <- tau/rowSums(tau)
     tau
