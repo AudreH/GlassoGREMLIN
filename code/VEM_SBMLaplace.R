@@ -3,14 +3,12 @@ entropy <- function(distr) {
  -sum(distr * log(distr + 1*(distr == 0)))
 }
  
-VEM_SBM_laplace <- function(G, Q, cl.init = kmeans(Omega, centers = Q, nstart = 10)$cl, eps = 1e-5, maxIter = 50){
+VEM_SBM_laplace <- function(Omega, Q, cl.init = kmeans(Omega, centers = Q, nstart = 10)$cl, eps = 1e-5, maxIter = 50){
 
-  stopifnot(is.igraph(G))
   ## Initialization
-  p <- gorder(G)
+  p <- ncol(Omega)
   J <- vector("numeric", maxIter)
   zero  <- .Machine$double.eps
-  Omega <- as_adj(G, attr = "weight", sparse = FALSE)
 
   ### variational lower bound
   get_J <- function(theta, tau){

@@ -11,6 +11,7 @@ cl <- V(mySBM)$membership
 Omega <- mySBM %>% as_adj(attr = "weight")
 image(Omega[order(cl), order(cl)])
 
-print(aricode::ARI(kmeans(Omega, centers = 3, nstart = 10)$cl , cl))
+vBlocks <- 1:5
+out <- lapply(vBlocks, function(q) VEM_SBM_laplace(Omega, q))
 
-out <- VEM_SBM_laplace(mySBM, 3)
+plot(vBlocks, sapply(out, function(o) o$vICL), type = "l", main = "vICL")
