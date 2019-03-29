@@ -56,7 +56,7 @@
 
 \maketitle
 
-\section{Model}
+\section{Model}\label{sec:model}
 
 Data: $X$, $i\in \{ 0,...,n \}$ observations. $X \sim \mathcal{N}(0, \Sigma^{-1} = \Omega)$, $\Omega$ concentration matrix. Assumption: $Q$ hidden clusters in the data. For each observation $i$, $Z_{iq} = \mathds{1}_{i\in q}$, $ q\in \{ 1,...,Q \}$. $Z_{iq}$ = independant latent variables.
 
@@ -126,6 +126,8 @@ Notation: $|\Omega| = det(\Omega) = 1/|\Omega^{-1}|$
 
 \paragraph{(2):}  $\Omega|Z \sim Laplace(0, \Lambda)$
 
+
+\textcolor{red}{Sophie : ici il faut changer tous les $n$ en $p$ = taille de $\Omega$. }
 If $i\neq j$:
 \begin{align*}
 \log \mathbb{P}(\Omega|Z) &= \log \prod_{i,j,q,l} \mathbb{P}(\Omega_{ij}|\{Z_{iq}Z_{jl}\})^{Z_{iq}Z_{jl}}~ \text{Astuce termes puissance 0 ne participent pas au produit} \\ 
@@ -139,6 +141,7 @@ Otherwise:
 
 \paragraph{(3):} $Z \sim \mathcal{M}(1,\underline{\alpha})$
 
+\textcolor{red}{Sophie : ici il faut changer tous les $n$ en $p$ = taille de $\Omega$. }
 \begin{align*}
 \log \mathbb{P}(Z) &= \log \prod_{i = 1}^n \mathbb{P}(Z_i) = \log \prod_{i = 1}^n \prod_{q = 1}^Q \alpha_q^{Z_{iq}} \\
 	&=  \sum_{i = 1}^n \sum_{q = 1}^Q \log \alpha_q^{Z_{iq}} =  \sum_{i = 1}^n \sum_{q = 1}^Q Z_{iq} \log \alpha_q \\
@@ -274,14 +277,66 @@ The value if $\alpha_q$ will be derived from the following expression:
 
 \paragraph{Estimating $\hat{\lambda}_{lq}$:}
 
-\[ \left. \frac{\partial\mathcal{J}_\tau(X, \Omega, Z)}{\partial \lambda_{ql}}  \right| _{\tau_{iq}} = \sum_{\substack{j = 1 \\  j\neq i}}^n \tau_{iq}\tau_{jl}\left( -\frac{1}{2\lambda_{ql}} + \frac{|\Omega_{ij}|}{\lambda_{ql}^2}\right)\]
+\[ \left. \frac{\partial\mathcal{J}_\tau(X, \Omega, Z)}{\partial \lambda_{ql}}  \right| _{\tau_{iq}} = \sum_{\substack{j = 1 \\  j\neq i}}^p \tau_{iq}\tau_{jl}\left( -\frac{1}{2\lambda_{ql}} + \frac{|\Omega_{ij}|}{\lambda_{ql}^2}\right)\]
 
 \begin{align*}
-0 &=  \sum_{\substack{j = 1 \\  j\neq i}}^n \tau_{iq}\tau_{jl}\left( -\frac{1}{2\lambda_{ql}} + \frac{|\Omega_{ij}|}{\lambda_{ql}^2}\right) \\
-\Rightarrow 0	& = \sum_{\substack{j = 1 \\  j\neq i}}^n \tau_{iq}\tau_{jl}\left( -\frac{1}{2} + \frac{|\Omega_{ij}|}{\lambda_{ql}}\right) \\
+0 &=  \sum_{\substack{j = 1 \\  j\neq i}}^p\tau_{iq}\tau_{jl}\left( -\frac{1}{2\lambda_{ql}} + \frac{|\Omega_{ij}|}{\lambda_{ql}^2}\right) \\
+\Rightarrow 0	& = \sum_{\substack{j = 1 \\  j\neq i}}^p \tau_{iq}\tau_{jl}\left( -\frac{1}{2} + \frac{|\Omega_{ij}|}{\lambda_{ql}}\right) \\
 \end{align*}
 
 \[ \boxed{\hat{\lambda}_{ql} = \frac{\sum_{\substack{j = 1 \\  j\neq i}}^n  \tau_{iq}\tau_{jl} |\Omega_{ij}|}{\sum_{\substack{j = 1 \\  j\neq i}}^n \tau_{iq}\tau_{jl}}   }\]
 
 
-\end{document}
+
+
+\section{Likelihood penalized point of view}
+
+Maybe talking of "model"  like in Section  \ref{sec:model} is not a good idea. 
+We should consider the penalized likelihood approach. 
+
+\paragraph{Graphical Lasso}
+Originally,  to estimate $\Omega$, it is standard to consider the lasso penalization
+\begin{align*}
+\mathcal{S}(X,\Omega,\lambda) &=  \log \mathbb{P}(X | \Omega) - \lambda^{-1}  \|\Omega\|_1\\
+&=   \log \mathbb{P}(X | \Omega) - \lambda^{-1} \sum_{i < j} |\Omega_{ij}| \\
+\widehat \Omega_\lambda  &= \arg \max_{\Omega} \mathcal{S}(X,\Omega,\lambda) 
+\end{align*}
+
+We see that : 
+\begin{align*}
+  \lambda^{-1} \sum_{i < j} |\Omega_{ij}| &= \sum_{i < j}  \log \exp\left( - \frac{ \|\Omega\|}{\lambda}\right)\\
+&=    \sum_{i < j}  \log\left(\frac{1}{2 \lambda} \exp\left( - \frac{ |\Omega_{ij}| }{\lambda}\right) \right) +   \sum_{i < j} \log\left(2\lambda\right) \\
+&=  \log \mathbb{P}(\Omega;\lambda) + Cste + \frac{p(p-1)}{2} \log(\lambda) 
+\end{align*}
+where $ \mathbb{P}(\Omega;\lambda) $ is such that the $\Omega_{ij} \sim_{i.i.d} Laplace(0,\lambda)$, $i< j$.   As a consequence : 
+\begin{align*}
+\widehat \Omega  &= \arg \max_{\Omega} \mathcal{S}(X,\Omega,\lambda) \\
+\mathcal{S}(X,\Omega,\lambda) &=  \log \mathbb{P}(X | \Omega) +  \log \mathbb{P}(\Omega;\lambda)  + \frac{p(p-1)}{2} \log(\lambda) \\
+&= \log \mathbb{P}(X | \Omega) +  \log \left[\mathbb{P}(\Omega;\lambda)  N(\lambda)  \right]
+\end{align*}
+where  $N(\lambda)$ is the normalizing constant of $\mathbb{P}(\Omega;\lambda)$. 
+
+
+
+\emph{Questions} 
+\begin{itemize}
+\item If we solve : 
+\begin{align*}
+\widehat (\Omega, \widehat \lambda)  &= \arg \max_{\Omega,\lambda} \widetilde{\mathcal{S}}(X,\Omega,\lambda) \\
+ \widetilde{\mathcal{S}}(X,\Omega,\lambda)  &=  \log \mathbb{P}(X | \Omega) +  \log \mathbb{P}(\Omega;\lambda)  \\
+ &=  \mathcal{S}(X,\Omega,\lambda)  -   \frac{p(p-1)}{2} \log(\lambda)
+\end{align*}
+we are doing something else. Does it have a sense to do that? 
+\end{itemize}
+
+
+\paragraph{Graphical SBM with $K$ fixed (number of clusters)}
+\begin{align*}
+\widehat \Omega  &= \arg \max_{\Omega} \mathcal{S}(X,\Omega) \\
+\mathcal{S}(X,\Omega) &=  \log \mathbb{P}(X | \Omega) +  \log \mathbb{P}_{SBM(K)}(\Omega; \theta)    + \log N_{SBM(K)}(\theta)
+\end{align*}
+
+ $\log \mathbb{P}_{SBM(K)}(\Omega; \theta)$ is the normalizing constant. 
+
+
+ \end{document}
