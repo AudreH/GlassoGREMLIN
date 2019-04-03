@@ -6,3 +6,9 @@
 *.aux
 
 *.gz
+
+*.log
+
+*.blg
+
+*.bbl
