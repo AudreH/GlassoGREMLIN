@@ -294,11 +294,10 @@ The value if $\alpha_q$ will be derived from the following expression:
 Maybe talking of "model"  like in Section  \ref{sec:model} is not a good idea. 
 We should consider the penalized likelihood approach. 
 
-\paragraph{Graphical Lasso}
+\paragraph{Inference of graphical model with prior point of view}
 Originally,  to estimate $\Omega$, it is standard to consider the lasso penalization
 \begin{align*}
-\mathcal{S}(X,\Omega,\lambda) &=  \log \mathbb{P}(X | \Omega) - \lambda^{-1}  \|\Omega\|_1\\
-&=   \log \mathbb{P}(X | \Omega) - \lambda^{-1} \sum_{i < j} |\Omega_{ij}| \\
+ &=   \log \mathbb{P}(X | \Omega) - \lambda^{-1} \sum_{i < j} |\Omega_{ij}| -  \lambda_0^{-1}  \sum_{i=1}^p|\Omega_{ii}| \\
 \widehat \Omega_\lambda  &= \arg \max_{\Omega} \mathcal{S}(X,\Omega,\lambda) 
 \end{align*}
 
@@ -306,37 +305,127 @@ We see that :
 \begin{align*}
   \lambda^{-1} \sum_{i < j} |\Omega_{ij}| &= \sum_{i < j}  \log \exp\left( - \frac{ \|\Omega\|}{\lambda}\right)\\
 &=    \sum_{i < j}  \log\left(\frac{1}{2 \lambda} \exp\left( - \frac{ |\Omega_{ij}| }{\lambda}\right) \right) +   \sum_{i < j} \log\left(2\lambda\right) \\
-&=  \log \mathbb{P}(\Omega;\lambda) + Cste + \frac{p(p-1)}{2} \log(\lambda) 
+&=  \log \mathbb{P}(\Omega;\lambda) + Cste(\lambda) + \frac{p(p-1)}{2} \log(\lambda) 
 \end{align*}
-where $ \mathbb{P}(\Omega;\lambda) $ is such that the $\Omega_{ij} \sim_{i.i.d} Laplace(0,\lambda)$, $i< j$.   As a consequence : 
+where $ \mathbb{P}(\Omega;\lambda) $ is the prior such that the $$\Omega_{ij} \sim_{i.i.d} Laplace(0,\lambda), \quad i< j, \mbox{ and } \quad \Omega_{ii} \sim_{i.i.d} Laplace(0,\lambda_0),$$
+\emph{normalized over the precision matrices that are positive definite} (meaning that we set a null prior on the non positive definite matrices $\Omega$). More precisely, let $\mathcal{D}$ be the positive definite matrices, we set: 
+$$ \mathbb{P}(\Omega;\lambda)  =\frac{\mathbf{1}_{\Omega \in \mathcal{D}}\prod_{i<j} \lambda e^{-\lambda | \Omega_{ij}|} \prod_{i} \lambda_0 e^{-\lambda_0 | \Omega_{ii}|}}{\int \mathbf{1}_{\Omega \in \mathcal{D}}\prod_{i<j} \lambda e^{-\lambda | \Omega_{ij}|} \prod_{i} \lambda_0 e^{-\lambda_0 | \Omega_{ii}|} d\Omega} $$
+
+
+
+If $\lambda$ is known, then  the denominator of $\mathbb{P}(\Omega;\lambda)$ does not depend on $\Omega$ and so : 
 \begin{align*}
-\widehat \Omega  &= \arg \max_{\Omega} \mathcal{S}(X,\Omega,\lambda) \\
-\mathcal{S}(X,\Omega,\lambda) &=  \log \mathbb{P}(X | \Omega) +  \log \mathbb{P}(\Omega;\lambda)  + \frac{p(p-1)}{2} \log(\lambda) \\
-&= \log \mathbb{P}(X | \Omega) +  \log \left[\mathbb{P}(\Omega;\lambda)  N(\lambda)  \right]
+\widehat \Omega_\lambda  &= \arg \max_{\Omega} \mathcal{S}(X,\Omega,\lambda) \\
+  &= \arg \max_{\Omega} \;   \log \mathbb{P}(X | \Omega) +  \log \mathbb{P}(\Omega;\lambda)  + Cste(\lambda)\\
+&= \arg \max_{\Omega}  \;  \log \mathbb{P}(X | \Omega) + \log   \mathbb{P}(\Omega;\lambda) \\
+&=  \arg \max_{\Omega}   \mathbb{P}_\lambda(\Omega | X)
 \end{align*}
-where  $N(\lambda)$ is the normalizing constant of $\mathbb{P}(\Omega;\lambda)$. 
+where $ \mathbb{P}_\lambda(\Omega | X)$ is the posterior distribution corresponding to the prior distribution  $ \mathbb{P}(\Omega;\lambda) $
+
+
+ 
 
 
 
-\emph{Questions} 
-\begin{itemize}
-\item If we solve : 
+
+\paragraph{A different prior distribution on $\Omega$}
+
+Now we propose to change the prior distribution : 
+
+
+We set a SBM prior on $\Omega$. We fix $K$ the number of clusters
+
+\begin{eqnarray*}
+ Z_i &\sim& {i.i.d.} \mathcal{M}(1,\pi)  \quad  \forall i \in \{1, \dots, p\} \\
+ \Omega_{ij} | Z_i=k,Z_j=\ell &\sim& Laplace(\lambda_{k\ell})  \quad  \forall i<j \in \{1, \dots, p\}\\
+ \Omega_{ii} &\sim& Laplace(\lambda_0)  \quad  \forall i  \in \{1, \dots, p\}\\
+\end{eqnarray*}
+But, to consider the "prior" point of view, we have to restrict this prior  over the definite positive matrices
+
+$$ \mathbb{P}_{\pi,\lambda,K, \mathcal{D}}(\Omega)\propto  \mathbf{1}_{\Omega\in  \mathcal{D}}  \sum_{\mathbf{Z}} P(\Omega |\mathbf{Z}; \lambda) P(\mathbf{Z}; \pi)  = \frac{\mathbf{1}_{\Omega\in  \mathcal{D}}  \sum_{\mathbf{Z}}P(\Omega |\mathbf{Z}; \lambda) P(\mathbf{Z}; \pi) }{ \int{\mathcal{D}}   \sum_{\mathbf{Z}} P(\Omega |\mathbf{Z}; \lambda) P(\mathbf{Z}; \pi)   d\Omega} $$
+
+
+If $K$,  $\lambda$ and $\pi$ are know then we have to optimize: 
 \begin{align*}
-\widehat (\Omega, \widehat \lambda)  &= \arg \max_{\Omega,\lambda} \widetilde{\mathcal{S}}(X,\Omega,\lambda) \\
- \widetilde{\mathcal{S}}(X,\Omega,\lambda)  &=  \log \mathbb{P}(X | \Omega) +  \log \mathbb{P}(\Omega;\lambda)  \\
- &=  \mathcal{S}(X,\Omega,\lambda)  -   \frac{p(p-1)}{2} \log(\lambda)
-\end{align*}
-we are doing something else. Does it have a sense to do that? 
-\end{itemize}
-
-
-\paragraph{Graphical SBM with $K$ fixed (number of clusters)}
-\begin{align*}
-\widehat \Omega  &= \arg \max_{\Omega} \mathcal{S}(X,\Omega) \\
-\mathcal{S}(X,\Omega) &=  \log \mathbb{P}(X | \Omega) +  \log \mathbb{P}_{SBM(K)}(\Omega; \theta)    + \log N_{SBM(K)}(\theta)
+\widehat \Omega_{\pi,\lambda,K}  &= \arg \max_{\Omega} \mathcal{S}(X,\Omega, \lambda,\pi,K) \\
+\mathcal{S}(X,\Omega, \lambda,\pi,K) &=  \log \mathbb{P}(X | \Omega) +  \log \mathbb{P}_{ \pi,\lambda,K, \mathcal{D} }(\Omega; \theta)    
 \end{align*}
 
- $\log \mathbb{P}_{SBM(K)}(\Omega; \theta)$ is the normalizing constant. 
+However, that way, we have to optimize $\Omega$ under the constraint... 
+ 
 
 
+\vspace{1em}
+
+
+
+An other strategy similar to the one proposed by \cite{Marlin2009} or \cite{Sun2015} is  to remove the constraint from the prior and  maximise a pseudo-likelihood. More precisely : 
+
+$$
+\widehat \Omega_\lambda   = \arg \max_{\Omega} \widetilde{\mathcal{S}}(X,\Omega,\lambda) $$
+with 
+
+
+$$
+ \widetilde{\mathcal{S}}(X,\Omega,\lambda,\pi,K)  =  \log \widetilde{\mathcal{S}}(X | \Omega)  +   \log \mathbb{P}_{\pi,\lambda,K}(\Omega) $$
+where 
+$$ \mathbb{P}_{\pi,\lambda,K}(\Omega) =   \sum_{\mathbf{Z}} P(\Omega |\mathbf{Z}; \lambda) P(\mathbf{Z}; \pi)$$
+and 
+$\log \widetilde{\mathcal{S}}(X | \Omega) $ is the linear regression version of the $\Omega_{ij}$. 
+
+
+
+\vspace{1em} 
+
+\paragraph{\textcolor{red}{New strategy}}
+An other strategy could be to put a SBM prior distribution on the $\Omega_{ij}$ ($i<j$) and set $\Omega_{ii} = \sum_{j \neq i} \Omega_{ij}$
+In that case, the matrix $\Omega$ automatically becomes  positive definite.  It could be any other transformation making the matrix inversible. 
+
+
+So let us define : $ \Omega_T$ the upper triangular coefficients of $\Omega$. We set a prior SBM distribution on $\Omega_T$. 
+$\Omega$ is deduced deterministically from $\Omega_T$.  We denote by $\Phi$ this deterministic function. 
+ 
+
+We set : 
+$$
+ \widetilde{\widetilde{\mathcal{S}}}(X,\Omega_T,\lambda,\Omega,\lambda,\pi,K)  =  \log  \mathbb{P}(X | \Phi(\Omega_T))  +   \log \mathbb{P}_{\pi,\lambda,K}(\Omega_T) $$
+
+We want to optimize it with respect to $\Omega_T$ and $\pi,\lambda$ (for a fixed $K$). We won't be able to do it because $  \log \mathbb{P}_{\pi,\lambda,K}(\Omega_T)$ has no explicit expressions. We introduced a lower bound of $\widetilde{\widetilde{\mathcal{S}}}(X,\Omega_T,\lambda,\Omega,\lambda,\pi,K)$, namely $\mathcal{J}(X,\Omega_T,\lambda,\Omega,\lambda,\pi,K,\tau)$
+
+\begin{eqnarray*}
+\mathcal{J}_K(X;\Omega_T,\lambda,\pi,\tau) &=& \log  \mathbb{P}(X | \Phi(\Omega_T))  + \log \mathbb{P}_{\pi,\lambda,K}(\Omega_T)  -  \mathcal{K}(\mathcal{R}_{\tau}, P(Z | \Omega))\\
+ &=&  \log  \mathbb{P}(X | \Phi(\Omega_T))  + \mathbb{E}_{\mathcal{R}_{\tau}} \left[\log  P(\Omega_T ,\mathbf{Z}; \lambda,\pi)    \right] + \mathcal{H}(\mathcal{R}_{\tau}(\cdot))
+ \end{eqnarray*}
+
+
+We can optimize it iteratively. At iteration $t$. 
+
+\begin{enumerate}
+\item  $$(\pi^{(t)},\lambda^{(t)}) = \arg \max_{\pi,\lambda} \mathcal{J}_K(X;\Omega_T^{(t-1)},\lambda,\pi,\tau^{(t-1)})$$
+It is the M-step of the VEM. 
+\item   $$\tau^{(t)} = \arg \max_{\tau}  \mathcal{J}_K(X;\Omega_T^{(t-1)},\lambda^{(t)},\pi^{(t)},\tau)$$
+
+It the $E$-step of the VEM. Resulting into a fixed point equation.  We could also use a lower bound of this preventing from resolving a fixed point equation (GEM). 
+
+\item 
+\begin{eqnarray*}
+\Omega^{(t)}_T &=& \arg \max_{\Omega_T}  \log  \mathbb{P}(X | \Phi(\Omega_T))  + \mathbb{E}_{\mathcal{R}_{\tau^{(t)}}} \left[\log  P(\Omega_T ,\mathbf{Z}; \lambda^{(t)},\pi^{(t)})    \right] + \mathcal{H}(\mathcal{R}_{\tau^{(t)}}(\cdot))\\
+&=&  \arg \max_{\Omega_T}   \left[ \log  \mathbb{P}(X | \Phi(\Omega_T))  +  \sum_{i<j} \sum_{k,l}\tau^{(t)}_{ik}\tau^{(t)}_{j\ell} (  \log \lambda^{(t)}_{k,\ell}  - \lambda^{(t)}_{k\ell} |\Omega_{ij}| )  \right]  \\
+&=&  \arg \max_{\Omega_T}    \left[ \log  \mathbb{P}(X | \Phi(\Omega_T))  -   \sum_{i<j} \sum_{k,l}\tau^{(t)}_{ik}\tau^{(t)}_{j\ell}   \lambda^{(t)}_{k\ell} |\Omega_{ij}|   \right]    
+\end{eqnarray*}
+\textcolor{red}{I state that it is equivalent to estimating  $\Omega$ in its complete version (upper and diagonal) under the constraint  $\Omega_{ii} = \sum_{i\neq j } \Omega_{ij}$ which is a linear constraint : 
+$$  \Omega_{ii} -  \sum_{i\neq j } \Omega_{ij}=0$$}
+Using a Lagrange approach, we get: 
+\begin{eqnarray*}
+\Omega^{(t)}  &=& \arg \max_{\Omega}    \left[ \log  \mathbb{P}(X | \Omega )  -   \sum_{i<j} \sum_{k,l}\tau^{(t)}_{ik}\tau^{(t)}_{j\ell}   \lambda^{(t)}_{k\ell} |\Omega_{ij}|   \right] + \sum_{i=1}^p\nu_i    \left( \Omega_{ii} -  \sum_{i\neq j } \Omega_{ij} \right)
+  \end{eqnarray*}
+And $\Omega_T^{(t)}$ is the upper triangular part of $\Omega^{(t)}$
+\textcolor{red}{Is it feasible Julien ???? }
+
+
+\end{enumerate}
+
+\bibliographystyle{plain}
+\bibliography{biblio}
+  
  \end{document}

@@ -1,0 +1,16 @@
+\begin{thebibliography}{1}
+
+\bibitem{Marlin2009}
+Benjamin~M. Marlin and Kevin~P. Murphy.
+\newblock {Sparse Gaussian graphical models with unknown block structure}.
+\newblock pages 1--8, 2009.
+
+\bibitem{Sun2015}
+Siqi Sun and Hai Wang.
+\newblock {Inferring Block Structure of Graphical Models in Exponential
+  Families}.
+\newblock {\em Proceedings of the 18th International Conference on Artifical
+  Intelligence and Statistics (AISTATS) International Conference on Machine
+  Learning - ICML '09}, 38, 2015.
+
+\end{thebibliography}
