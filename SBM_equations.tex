@@ -417,13 +417,27 @@ It the $E$-step of the VEM. Resulting into a fixed point equation.  We could als
 $$  \Omega_{ii} -  \sum_{i\neq j } \Omega_{ij}=0$$}
 Using a Lagrange approach, we get: 
 \begin{eqnarray*}
-\Omega^{(t)}  &=& \arg \max_{\Omega}    \left[ \log  \mathbb{P}(X | \Omega )  -   \sum_{i<j} \sum_{k,l}\tau^{(t)}_{ik}\tau^{(t)}_{j\ell}   \lambda^{(t)}_{k\ell} |\Omega_{ij}|   \right] + \sum_{i=1}^p\nu_i    \left( \Omega_{ii} -  \sum_{i\neq j } \Omega_{ij} \right)
+\Omega^{(t)}  &=& \arg \max_{\Omega}    \left[ \log  \mathbb{P}(X | \Omega )  -   \sum_{i<j} \sum_{k,l}\tau^{(t)}_{ik}\tau^{(t)}_{j\ell}   \lambda^{(t)}_{k\ell} |\Omega_{ij}|   + \sum_{i=1}^p\nu_i    \left( \Omega_{ii} -  \sum_{i\neq j } \Omega_{ij} \right) \right]
   \end{eqnarray*}
 And $\Omega_T^{(t)}$ is the upper triangular part of $\Omega^{(t)}$
 \textcolor{red}{Is it feasible Julien ???? }
 
 
+
+
 \end{enumerate}
+
+\textcolor{green}{Extension}
+On peut aussi juste mettre la contrainte  $\Omega_{ii} > \sum_{i\neq j } \Omega_{ij} $ ce qui pourrait être fait en posant 
+$$\Omega_{ii}  = \sum_{i\neq j } \Omega_{ij}  + \mu_i  \quad \mbox{with} \quad \mu_i \sim_{i.i.d.}  Laplace(\lambda_0)$$ 
+
+
+\textcolor{green}{Question}
+
+Est ce que cela a  un sens de contraindre $\Omega$ dans cet espace?  Est ce qu'on perd beaucoup de matrices $\Omega$?  
+
+
+
 
 \bibliographystyle{plain}
 \bibliography{biblio}
