@@ -436,6 +436,43 @@ $$\Omega_{ii}  = \sum_{i\neq j } \Omega_{ij}  + \mu_i  \quad \mbox{with} \quad \
 
 Est ce que cela a  un sens de contraindre $\Omega$ dans cet espace?  Est ce qu'on perd beaucoup de matrices $\Omega$?  
 
+\section{A new approach : a block model structure on the Cholesky decomposition of $\Omega$}
+
+Let $L$ be a lower triangular matrix such that $L_{ii}>0$ for any $i$. 
+Then $\Omega  = L L^T$ is a symatric definite positive matrix. 
+As a consequence, let us propose a SBM prior distribution on $L$. 
+
+
+We set the following model prior distribution on  $L$. We fix $K$ the number of clusters
+
+\begin{eqnarray*}
+ Z_i &\sim& {i.i.d.} \mathcal{M}(1,\pi)  \quad  \forall i \in \{1, \dots, p\} \\
+ L_{ij} | Z_i=k,Z_j=\ell &\sim&_{i.i.d} Laplace(\lambda_{k\ell})  \quad  \forall i<j \in \{1, \dots, p\}\\
+ L_{ii} &\sim& \Gamma(\alpha_0, \beta_0)  \quad  \forall i  \in \{1, \dots, p\}\\
+\Omega &=& L L^T
+\end{eqnarray*}
+A so
+$$\Omega_{ij} = \sum_{r=1}^j L_{ir} L_{jr}, \forall i \geq j$$
+
+\paragraph{Do we get from that a block structure on $\Omega$}
+
+A a consequence, $\forall i >j$ 
+\begin{eqnarray*}
+\mathbb{E}[\Omega_{ij} | Z_i = k, Z_j = \ell] &=& \mathbb{E}\left[\sum_{r=1}^j L_{ir} L_{jr} | Z_i = k, Z_j = \ell\right]\\
+&=&  \sum_{r=1}^{j-1}  \mathbb{E} \left[ L_{ir} L_{jr} | Z_i = k, Z_j = \ell\right] +  \mathbb{E} \left[ L_{ij} L_{jj} | Z_i = k, Z_j = \ell\right]  \\
+&=& \sum_{r=1}^{j-1}   \sum_{v = 1}^K  \mathbb{E}\left[ L_{ir} L_{jr} | Z_i = k, Z_j = \ell, Z_r = v\right] P(Z_r = v) +  \mathbb{E} \left[ L_{ij} | Z_i = k, Z_j = \ell\right]     \mathbb{E} \left[ L_{jj} | Z_i = k, Z_j = \ell\right]\\
+&=& \sum_{r=1}^{j-1}  \sum_{v = 1}^K   \mathbb{E}\left[ L_{ir} | Z_i = k, Z_r = v\right]    \mathbb{E}\left[L_{jr} |  Z_j = \ell, Z_r = v\right] \pi_v + \mu_{k \ell} \cdot  \mu_0\\
+&=&  \sum_{r=1}^{j-1} \sum_{v = 1}^K \mu_{kv} \mu_{\ell v} \pi_v + \mu_{k \ell} \cdot  \mu_0\\
+&=& (j-1)   \sum_{v = 1}^K  \mu_{kv} \mu_{\ell v} \pi_v  +    \mu_{k \ell} \cdot  \mu_0\\
+&=& F(j,k,\ell)
+\end{eqnarray*}
+
+
+\begin{center}
+\fbox{No we don't!!!!! $\rightarrow$ espoirs douchés} 
+\end{center}
+
+
 
 
 
