@@ -462,18 +462,21 @@ A a consequence, $\forall i >j$
 &=&  \sum_{r=1}^{j-1}  \mathbb{E} \left[ L_{ir} L_{jr} | Z_i = k, Z_j = \ell\right] +  \mathbb{E} \left[ L_{ij} L_{jj} | Z_i = k, Z_j = \ell\right]  \\
 &=& \sum_{r=1}^{j-1}   \sum_{v = 1}^K  \mathbb{E}\left[ L_{ir} L_{jr} | Z_i = k, Z_j = \ell, Z_r = v\right] P(Z_r = v) +  \mathbb{E} \left[ L_{ij} | Z_i = k, Z_j = \ell\right]     \mathbb{E} \left[ L_{jj} | Z_i = k, Z_j = \ell\right]\\
 &=& \sum_{r=1}^{j-1}  \sum_{v = 1}^K   \mathbb{E}\left[ L_{ir} | Z_i = k, Z_r = v\right]    \mathbb{E}\left[L_{jr} |  Z_j = \ell, Z_r = v\right] \pi_v + \mu_{k \ell} \cdot  \mu_0\\
-&=&  \sum_{r=1}^{j-1} \sum_{v = 1}^K \mu_{kv} \mu_{\ell v} \pi_v + \mu_{k \ell} \cdot  \mu_0\\
-&=& (j-1)   \sum_{v = 1}^K  \mu_{kv} \mu_{\ell v} \pi_v  +    \mu_{k \ell} \cdot  \mu_0\\
+&=&  \sum_{r=1}^{j-1} \sum_{v = 1}^K \mu_{kv} \mu_{\ell v} \pi_v + \mu_{k \ell} \cdot  \mathbb{E}[L_{jj}]\\
+&=& (j-1)   \sum_{v = 1}^K  \mu_{kv} \mu_{\ell v} \pi_v  +    \mu_{k \ell} \cdot   \mathbb{E}[L_{jj}]\\
 &=& F(j,k,\ell)
 \end{eqnarray*}
 
 
 \begin{center}
 \fbox{No we don't!!!!! $\rightarrow$ espoirs douchés} 
+
+If $\mathbb{E}[L_{jj}]  = (j-1)  \mu_0$, then  : 
+$$
+\mathbb{E}[\Omega_{ij} | Z_i = k, Z_j = \ell] = (j-1)  \Phi(k,\ell)
+$$
+so  we have a block structure on $\frac{\Omega_{ij}}{j-1}$. Not sure it is useful... 
 \end{center}
-
-
-
 
 
 \bibliographystyle{plain}
