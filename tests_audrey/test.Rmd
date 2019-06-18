@@ -1,0 +1,160 @@
+---
+title: "Tests"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+# for library
+library(rmutil)
+library(knitr)
+```
+
+
+```{r}
+source("../code/utils.R")
+source("../code/utils_laplace.R")
+source("../code/VEM_SBMLaplace.R")
+```
+
+
+```{r}
+n_nodes = 20  
+n_groupes = 3
+Lambda = matrix(c(0.1, 2, 3, 2, 0.1, 2, 3, 2, 0.1), 3, 3)
+Lambda
+mu = matrix(c(25, 2, 10, 2, -10, 0.5, 10, 0.5, 20), 3, 3)
+mu
+```
+
+
+```{r}
+rSBMLaplace_2 <- function(p, Lambda, alpha = c(1), seed = NULL, mu = 0) {
+  if(!is.null(seed)) set.seed(seed)
+  
+  # p = n_nodes
+  # alpha = c(0.5, 0.3, 0.2)
+  # mu = c(0.2, 5, 25)
+  
+  Q <- length(alpha)
+  Z <- t(rmultinom(p, 1, prob = alpha))
+  Z = Z[order(Z[,1], Z[,2], Z[,3], decreasing = TRUE),]
+  # vect=cumsum(alpha*p)
+  A <- matrix(0, p, p)
+  B = A
+  subset <- lower.tri(A)
+  lambda <- (Z %*% Lambda %*% t(Z))[subset]
+  mu <- (Z %*% mu %*% t(Z))[subset]
+  x <- rmutil::rlaplace(n=p*(p-1)/2, m = mu, s = lambda) # rlaplace donne les res en log (d'ou presence de neg dans les resultats)
+  A[subset] <- x
+  x = A
+  # diag(A) = rowSums(abs(A)) # ???
+  diag(A) = rmutil::rlaplace(n = p, m = (1:p)-1, s = 1)
+  # A <- A + t(A)
+  A <- A%*%t(A) # ?
+  mySBM <- graph_from_adjacency_matrix(A, weighted = TRUE, mode = "undirected")
+  vertex_attr(mySBM, "membership") <- Z %*% 1:Q
+  return(list(mySBM = mySBM, A = A, L = x, mu = mu, lambda = lambda))
+}
+
+```
+
+## Simuler L avec des groupes et voir si Omega = LL' a des groupes
+
+```{r}
+res = rSBMLaplace_2(n_nodes, Lambda = Lambda, alpha = c(0.5, 0.3, 0.2), seed = 20, mu = mu)
+```
+
+```{r}
+cl <- V(res$mySBM)$membership
+names(cl) = 1:n_nodes
+cl
+```
+
+```{r}
+library(RColorBrewer)
+library(gplots)
+heatmap.2(res$A, 
+        symm = TRUE, distfun = function(c) dist(c, method = "euclidean"), hclustfun = function(d) hclust(d, method = "complete"),
+        ColSideColors = as.character(cl), RowSideColors = as.character(cl), trace = "none", col = redgreen(300), dendrogram = "none", Rowv = FALSE, Colv = FALSE)
+```
+
+```{r}
+heatmap.2(res$L, distfun = function(c) dist(c, method = "euclidean"), hclustfun = function(d) hclust(d, method = "complete"),
+        ColSideColors = as.character(cl), RowSideColors = as.character(cl), trace = "none", col = redgreen(300), dendrogram = "none", Rowv = FALSE, Colv = FALSE)
+```
+
+```{r}
+plot(-20:20, dlaplace(-20:20, m=0, s=1), type = "l", ylim = c(-0.01, 0.5), xlim = c(-21, 21))
+lines(-20:20, dlaplace(-20:20, m=0, s=10), col = "red")
+lines(-20:20, dlaplace(-20:20, m=10, s=5), col = "blue")
+lines(-20:20, dlaplace(-20:20, m=0, s=0.1), col = "green")
+lines(-20:20, dlaplace(-20:20, m=3, s=3), col = "magenta")
+```
+
+## Dans l'autre sens
+
+Simuler Omega (SDP) avec des blocks, trouver la décomposition de cholesky et voir s'il y a des blocks dedans. 
+
+```{r}
+cl
+```
+
+```{r}
+p = 20
+alpha = c(0.5, 0.3, 0.2) 
+SD = matrix(c(0.5, 0.01, 3, 0.01, 2, 5, 3, 5, 1), nrow = 3, ncol = 3)
+mu = matrix(c(100, -20, 10, -20, -100, 0, 10, 0 , -150), nrow = 3, ncol = 3)
+mu
+SD
+```
+
+```{r}
+set.seed(20)
+Z <- t(rmultinom(p, 1, prob = alpha))
+Z = Z[order(Z[,1], Z[,2], Z[,3], decreasing = TRUE),]
+A <- matrix(0, p, p)
+subset = lower.tri(A, diag = TRUE)
+std <- (Z %*% SD %*% t(Z))[subset]
+m <- (Z %*% mu %*% t(Z))[subset]
+# x <- rnorm(n=p^2, mean = m, sd = SD)
+x = rnorm(p*(p+1)/2, mean = m, sd = std)
+A[subset] = x
+A = A+t(A)
+# diag(A) = rowSums(abs(A))  # ???
+# diag(A) = rowSums(A)
+# diag(A) = abs(diag(A))
+A = A%*%t(A)
+# A = A+t(A)
+```
+
+<!-- ```{r} -->
+<!-- subset <- lower.tri(A) -->
+<!--   lambda <- (Z %*% Lambda %*% t(Z))[subset] -->
+<!--   mu <- (Z %*% mu %*% t(Z))[subset] -->
+<!--   x <- rmutil::rlaplace(n=p*(p-1)/2, m = mu, s = lambda) # rlaplace donne les res en log (d'ou presence de neg dans les resultats) -->
+<!--   A[subset] <- x -->
+<!--   x = A -->
+<!-- ``` -->
+
+
+```{r}
+heatmap.2(A, distfun = function(c) dist(c, method = "euclidean"), hclustfun = function(d) hclust(d, method = "complete"),
+        ColSideColors = as.character(cl), RowSideColors = as.character(cl), trace = "none",   col = redgreen(300), dendrogram = "none", Rowv = FALSE, Colv = FALSE)
+```
+
+```{r}
+res_chol = chol(A)
+```
+
+```{r}
+heatmap.2(res_chol, distfun = function(c) dist(c, method = "euclidean"), hclustfun = function(d) hclust(d, method = "complete"),
+        ColSideColors = as.character(cl), RowSideColors = as.character(cl), trace = "none", col = redgreen(300), dendrogram = "none", Rowv = FALSE, Colv = FALSE)
+```
+
+```{r}
+heatmap.2(t(res_chol)%*%res_chol, distfun = function(c) dist(c, method = "euclidean"), hclustfun = function(d) hclust(d, method = "complete"),
+        ColSideColors = as.character(cl), RowSideColors = as.character(cl), trace = "none", col = redgreen(300), dendrogram = "none", Rowv = FALSE, Colv = FALSE)
+```
+
