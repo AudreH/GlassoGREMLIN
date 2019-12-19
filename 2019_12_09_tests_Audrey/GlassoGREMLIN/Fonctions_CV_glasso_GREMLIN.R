@@ -1,5 +1,4 @@
-require(R.utils)
-
+require(glasso)
 require(parallel)
 require(doParallel)
 require(dplyr)
@@ -9,33 +8,28 @@ require(dplyr)
 # differente d'une arete a l'autre. V sera la matrice des probas de connexions (inverse terme a terme pour que les aretes ayant
 # une plus forte proba de connexion soient moins regularisee ?)
 # Le reste de la fonction n'a pas ete change (pour l'instant)
-# Modifications 10/12/19 : on change Gremlin pour BM simple. 
 
 
 ###############################################################################################################
 # ----- CVglasso FUNC : -----
 
-CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01, 
-                      lam = NULL, diagonal = FALSE, path = FALSE, tol = 1e-04, 
-                      maxit = 10000, adjmaxit = NULL, K = 5, 
-                      crit.cv = c("loglik", "AIC", "BIC"),
-                      # start = c("warm", "cold"), 
-                      cores = 1, 
-                      trace = c("progress", "print", "none"),
-                      solver = "shooting",
-                      ## ARGUMENTS BM
-                      membership_type = 'SBM', 
-                      verbosity=0,
-                      autosave='',
-                      plotting=character(0),
-                      exploration_factor=1.5,
-                      explore_min=4,
-                      explore_max=Inf,
-                      ncores=detectCores(),
-                      ## ARGUMENTS Alernance BM/Glasso
-                      thre.iter = 10^-6, # seuil pour commencer les iterations... 
-                      n.iter = 10, # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
-                      ...) {
+CVglassoGREM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01, 
+                        lam = NULL, diagonal = FALSE, path = FALSE, tol = 1e-04, 
+                        maxit = 10000, adjmaxit = NULL, K = 5, 
+                        crit.cv = c("loglik", "AIC", "BIC"),
+                        start = c("warm", "cold"), 
+                        cores = 1, 
+                        trace = c("progress", "print", "none"),
+                        V = NULL, # MODIF matrix of edge penalization. Multiplier of lambda.
+                        ## ARGUMENTS GREMLIN
+                        nb_feat, # nombre de features par blocks (decoupage des matrices en reseaux, important)
+                        blocks_names = names(nb_feat), # nom des blocks
+                        v_Kmin = rep(2, length(nb_feat)), 
+                        v_Kmax =  v_Kmin+3, 
+                        verbose = FALSE, # de base il vaut mieux que ce soit faux pour de la crossvalidation
+                        nbcores_grem = 1,
+                        # maxiterVE = 100,
+                        ...) {
   
   # checks
   if (is.null(X) && is.null(S)) {
@@ -69,11 +63,14 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
   if (is.null(adjmaxit)) {
     adjmaxit = maxit
   }
+  ### MODIF : verification des arguments pour GREMLIN
+  if(sum(nb_feat)!=ncol(S)){ stop("sum(nb_feat) must be equal to ncol(S)") }
+  if(length(blocks_names)!=length(nb_feat)){ stop("length(blocks_names) must be equals to length(nb_feat)") }
   
   
   # match values
   crit.cv = match.arg(crit.cv)
-  # start = match.arg(start)
+  start = match.arg(start)
   trace = match.arg(trace)
   call = match.call()
   MIN.error = AVG.error = CV.error = NULL
@@ -83,6 +80,7 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
   if (is.null(S)) {
     S = (nrow(X) - 1)/nrow(X) * cov(X)
   }
+  if(!is.null(V)){if(ncol(V)!=ncol(S) | nrow(V)!=nrow(S)) stop("V must have the same dimensions as S")} ### MODIF
   
   Sminus = S
   diag(Sminus) = 0
@@ -119,23 +117,17 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
     if (cores > 1) {
       
       # execute CVP ##### A CHANGER
-      GLASSO = CVP_glBM(X = X, S = S, lam = lam, diagonal = diagonal, 
-                        path = path, tol = tol, adjmaxit = adjmaxit, 
-                        cores = cores,
-                        K = K, crit.cv = crit.cv,  
-                        maxit = maxit,
-                        trace = trace,
-                        solver = solver,
-                        membership_type = membership_type, 
-                        verbosity=verbosity,
-                        autosave=autosave,
-                        plotting=plotting,
-                        exploration_factor=exploration_factor,
-                        explore_min=explore_min,
-                        explore_max=explore_max,
-                        ncores=ncores,
-                        thre.iter = thre.iter, # seuil pour commencer les iterations... 
-                        n.iter = n.iter, # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
+      GLASSO = CVP_glgr(X = X, S = S, lam = lam, diagonal = diagonal, 
+                        path = path, tol = tol, maxit = maxit, adjmaxit = adjmaxit, 
+                        K = K, crit.cv = crit.cv, start = start, trace = trace, 
+                        nb_feat = nb_feat, 
+                        blocks_names = blocks_names,
+                        v_Kmin  = v_Kmin, v_Kmax = v_Kmax , 
+                        verbose = verbose,
+                        cores = cores, 
+                        nbcores_grem = nbcores_grem,
+                        V = V,
+                        # maxiterVE = maxiterVE,
                         ...) ## MODIF
       MIN.error = GLASSO$min.error
       AVG.error = GLASSO$avg.error
@@ -147,30 +139,24 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
       if (is.null(X)) {
         X = matrix(0)
       }
-      # cat("I'm starting the cross-validation \n")
-      GLASSO = CV_glBM(X = X, S = S, lam = lam, diagonal = diagonal, 
-                       path = path, tol = tol, adjmaxit = adjmaxit, 
-                       K = K, crit.cv = crit.cv,  
-                       maxit = maxit,
-                       trace = trace,
-                       solver = solver,
-                       membership_type = membership_type, 
-                       verbosity=verbosity,
-                       autosave=autosave,
-                       plotting=plotting,
-                       exploration_factor=exploration_factor,
-                       explore_min=explore_min,
-                       explore_max=explore_max,
-                       ncores=ncores,
-                       thre.iter = thre.iter, # seuil pour commencer les iterations... 
-                       n.iter = n.iter, # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
+      cat("I'm starting the cross-validation \n")
+      GLASSO = CV_glgr(X = X, S = S, lam = lam, diagonal = diagonal, 
+                       path = path, tol = tol, maxit = maxit, adjmaxit = adjmaxit, 
+                       K = K, crit.cv = crit.cv, start = start, trace = trace, 
+                       nb_feat = nb_feat, 
+                       blocks_names = blocks_names,
+                       v_Kmin  = v_Kmin, v_Kmax = v_Kmax , 
+                       verbose = verbose,
+                       nbcores_grem = nbcores_grem,
+                       V = V,
+                       # maxiterVE = maxiterVE,
                        ...) ## MODIF
       MIN.error = GLASSO$min.error
       AVG.error = GLASSO$avg.error
       CV.error = GLASSO$cv.error
       Path = GLASSO$path
       
-      # cat("\n I finished the CV glasso ! \n")
+      cat("\n I finished the CV glasso ! \n")
     }
     
     # print warning if lam on boundary
@@ -198,28 +184,24 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
     # compute final estimate at best tuning parameters
     lam_ = GLASSO$lam
     
-    res = BMGlassoIter(X = X, rho = lam_,
-                       thr = tol,
-                       maxit = maxit,
-                       penalize.diagonal = diagonal,
-                       trace = trace,
-                       solver = solver,
-                       membership_type = membership_type, 
-                       verbosity=verbosity,
-                       autosave=autosave,
-                       plotting=plotting,
-                       exploration_factor=exploration_factor,
-                       explore_min=explore_min,
-                       explore_max=explore_max,
-                       ncores=ncores,
-                       thre.iter = thre.iter, # seuil pour commencer les iterations... 
-                       n.iter = n.iter # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
-    )
-    
+    res = glgr_func(X = X, s = S, rho = lam_, thr = tol,
+                    maxit = maxit, penalize.diagonal = diagonal,
+                    # start = start,
+                    start = "cold",
+                    w.init = init, wi.init = diag(ncol(S)),
+                    trace = FALSE,   nb_feat = nb_feat,
+                    blocks_names = blocks_names,
+                    v_Kmin = v_Kmin, v_Kmax = v_Kmax,
+                    # maxiterVE = maxiterVE,
+                    verbose = verbose,
+                    nbCores = nbcores_grem,
+                    V = V,
+                    ...
+             )
     
     GLASSO = res$GLASSO
     GLASSO$lam = lam_
-    V = res$BM_step$mat_penalty
+    V = 1/(res$GREM$matrix_reconstruct) # Add 09/12/19, final estimate for V
     
   } else {
     
@@ -244,30 +226,24 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
       
     }
     
-    res = BMGlassoIter(X = X, rho = lam_,
-                       thr = tol,
-                       maxit = maxit,
-                       penalize.diagonal = diagonal,
-                       trace = trace,
-                       solver = solver,
-                       membership_type = membership_type, 
-                       verbosity=verbosity,
-                       autosave=autosave,
-                       plotting=plotting,
-                       exploration_factor=exploration_factor,
-                       explore_min=explore_min,
-                       explore_max=explore_max,
-                       ncores=ncores,
-                       thre.iter = thre.iter, # seuil pour commencer les iterations... 
-                       n.iter = n.iter # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
-    )
-    
+    res = glgr_func(X = X, s = S, rho = lam, thr = tol,
+                    maxit = maxit, penalize.diagonal = diagonal,
+                    start = start,
+                    w.init = init, wi.init = initOmega,
+                    trace = FALSE,   nb_feat = nb_feat,
+                    blocks_names = blocks_names,
+                    v_Kmin = v_Kmin, v_Kmax = v_Kmax,
+                    verbose = verbose, 
+                    nbCores = nbcores_grem,
+                    V = V,
+                    # maxiterVE = maxiterVE,
+                    ...)
     
     
     GLASSO = res$GLASSO
     
     GLASSO$lam = lam
-    V = res$BM_step$mat_penalty
+    V = 1/res$GREM$matrix_reconstruct
     
   }
   
@@ -292,8 +268,7 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
     Path = NULL
   }
   
-  returns = list(Call = call,
-                 res = res,
+  returns = list(Call = call, 
                  Iterations = GLASSO$niter,
                  Tuning = tuning, Lambdas = lam, 
                  maxit = maxit,
@@ -339,29 +314,24 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
 #' @keywords internal
 
 # we define the CV function
-CV_glBM = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2), 
+CV_glgr = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2), 
                    diagonal = FALSE, path = FALSE, tol = 1e-04, maxit = 10000, 
                    adjmaxit = NULL, K = 5, crit.cv = c("loglik", "AIC", "BIC"), 
-                   # start = c("warm", "cold"), 
-                   cores = 1, trace = c("progress", "print", "none"),
-                   solver = "shooting",
-                   ## ARGUMENTS BM
-                   membership_type,
-                   verbosity=0,
-                   autosave='',
-                   plotting=character(0),
-                   exploration_factor=1.5,
-                   explore_min=4,
-                   explore_max=Inf,
-                   ncores=detectCores(),
-                   ## ARGUMENTS Alernance BM/Glasso
-                   thre.iter = 10^-6, # seuil pour commencer les iterations... 
-                   n.iter = 10, # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
+                   start = c("warm", "cold"), cores = 1, trace = c("progress", 
+                                                                   "print", "none"),
+                   nb_feat , 
+                   blocks_names ,
+                   v_Kmin , v_Kmax , 
+                   verbose = FALSE,
+                   nbcores_grem = 1,
+                   V = NULL,
+                   # maxiterVE = maxiterVE,
+                   # V = NULL, ### MODIF
                    ...) {
   
   # match values
   crit.cv = match.arg(crit.cv)
-  # start = match.arg(start)
+  start = match.arg(start)
   trace = match.arg(trace)
   lam = sort(lam)
   
@@ -450,25 +420,22 @@ CV_glBM = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2),
       
       # compute the penalized likelihood precision matrix estimator
       ### MODIF
-      res = BMGlassoIter(X = X.train, rho = lam_,
-                         thr = tol,
-                         maxit = maxit,
-                         penalize.diagonal = diagonal,
-                         trace = trace,
-                         solver = solver,
-                         membership_type = membership_type, 
-                         verbosity=verbosity,
-                         autosave=autosave,
-                         plotting=plotting,
-                         exploration_factor=exploration_factor,
-                         explore_min=explore_min,
-                         explore_max=explore_max,
-                         ncores=ncores,
-                         thre.iter = thre.iter, # seuil pour commencer les iterations... 
-                         n.iter = n.iter # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
-      )
+      
+      res = glgr_func(X = X.train, s = S.train, rho = lam_, thr = tol,
+                      maxit = maxit, penalize.diagonal = diagonal,
+                      start = start,
+                      w.init = init, wi.init = initOmega,
+                      trace = FALSE,   nb_feat = nb_feat,
+                      blocks_names = blocks_names,
+                      v_Kmin = v_Kmin, v_Kmax = v_Kmax,
+                      verbose = verbose ,
+                      nbCores = nbcores_grem,
+                      V = V,
+                      # maxiterVE = maxiterVE,
+                      ...)
       
       GLASSO = res$GLASSO
+      # V = 1/(res$GREM$matrix_reconstruct) # Add 09/12/19
       
       # compute the observed negative validation loglikelihood
       # (close enoug)
@@ -512,7 +479,7 @@ CV_glBM = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2),
   
   # return best lam and alpha values
   return(list(lam = best_lam, path = Path, min.error = error, 
-              avg.error = AVG, cv.error = CV_errors))
+              avg.error = AVG, cv.error = CV_errors, V = V))
   
 }
 
@@ -521,30 +488,23 @@ CV_glBM = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2),
 # ----- CVP FUNC : ----- 
 # La meme que CV FUNC mais en parallele
 
-CVP_glBM = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2), 
+CVP_glgr = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2), 
                     diagonal = FALSE, path = FALSE, tol = 1e-04, maxit = 10000, 
                     adjmaxit = NULL, K = 5, crit.cv = c("loglik", "AIC", "BIC"), 
-                    # start = c("warm", "cold"), 
-                    cores = 1,
-                    trace = c("progress", "print", "none"),
-                    solver = "shooting",
-                    ## ARGUMENTS BM
-                    membership_type,
-                    verbosity=0,
-                    autosave='',
-                    plotting=character(0),
-                    exploration_factor=1.5,
-                    explore_min=4,
-                    explore_max=Inf,
-                    ncores=detectCores(),
-                    ## ARGUMENTS Alernance BM/Glasso
-                    thre.iter = 10^-6, # seuil pour commencer les iterations... 
-                    n.iter = 10, # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
+                    start = c("warm", "cold"), cores = 1, trace = c("progress", 
+                                                                    "print", "none"),
+                    nb_feat , 
+                    blocks_names ,
+                    v_Kmin , v_Kmax , 
+                    verbose = FALSE,
+                    nbcores_grem = 1,
+                    V = NULL,
+                    # maxiterVE = maxiterVE,
                     ...) {
   
   # match values
   crit.cv = match.arg(crit.cv)
-  # start = match.arg(start)
+  start = match.arg(start)
   trace = match.arg(trace)
   lam = sort(lam)
   
@@ -560,7 +520,7 @@ CVP_glBM = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2),
   }
   
   cluster = makeCluster(cores)
-  clusterExport(cl=cluster, varlist=c("BMGlassoIter", "BM_gaussian_step", "graphical.lasso"))
+  clusterExport(cl=cluster, varlist=c("glgr_func", "gremlin_list", "graphical.lasso"))
   registerDoParallel(cluster)
   
   # use cluster for each fold in CV
@@ -568,7 +528,7 @@ CVP_glBM = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2),
   ind = sample(n)
   k = NULL
   CV = foreach(k = 1:K, 
-               .packages = c("CVglasso", "glasso", "GREMLIN", "igraph", "network", "simone", "blockmodels"),
+               .packages = c("CVglasso", "glasso", "GREMLIN", "igraph", "network", "simone"),
                .combine = "cbind", 
                .inorder = FALSE) %dopar% {
                  
@@ -622,25 +582,33 @@ CVP_glBM = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2),
                    # compute the penalized likelihood precision matrix
                    # estimator
                    
+                   # GLASSO = glasso(s = S.train, rho = lam_*V, thr = tol, 
+                   #                 maxit = maxit, penalize.diagonal = diagonal, 
+                   #                 start = "warm", w.init = init, wi.init = initOmega, 
+                   #                 trace = FALSE, ...)
                    
-                   res = BMGlassoIter(X = X.train, rho = lam_,
-                                      thr = tol,
-                                      maxit = maxit,
-                                      penalize.diagonal = diagonal,
-                                      trace = trace,
-                                      solver = solver,
-                                      membership_type = membership_type, 
-                                      verbosity=verbosity,
-                                      autosave=autosave,
-                                      plotting=plotting,
-                                      exploration_factor=exploration_factor,
-                                      explore_min=explore_min,
-                                      explore_max=explore_max,
-                                      ncores=ncores,
-                                      thre.iter = thre.iter, # seuil pour commencer les iterations... 
-                                      n.iter = n.iter # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
-                   )
+                   res = glgr_func(X = X.train, s = S.train, rho = lam_, thr = tol,
+                                   maxit = maxit, penalize.diagonal = diagonal,
+                                   start = start,
+                                   w.init = init, wi.init = initOmega,
+                                   trace = FALSE,   nb_feat = nb_feat,
+                                   blocks_names = blocks_names,
+                                   v_Kmin = v_Kmin, v_Kmax = v_Kmax,
+                                   verbose = verbose,
+                                   nbCores = nbcores_grem,
+                                   V = V,
+                                   # maxiterVE = maxiterVE,
+                                   ...)
                    GLASSO = res$GLASSO
+                   
+                   # if (start == "warm") {
+                   #   
+                   #   # option to save initial values for warm starts
+                   #   init = GLASSO$w
+                   #   initOmega = GLASSO$wi
+                   #   maxit = adjmaxit
+                   #   
+                   # }
                    
                    # compute the observed negative validation loglikelihood
                    # (close enoug)
@@ -781,104 +749,3 @@ plot.CVglasso = function(x, type = c("line", "heatmap"), footnote = TRUE,
 
 
 
-
-
-# ---------------- BMGlassoIter : ----
-
-BMGlassoIter = function(X, rho,
-                        thr,
-                        maxit = 25,
-                        penalize.diagonal,
-                        trace = FALSE,
-                        solver = "shooting",
-                        membership_type, 
-                        # adj, 
-                        verbosity=0,
-                        autosave='',
-                        plotting=character(0),
-                        exploration_factor=1.5,
-                        explore_min=4,
-                        explore_max=Inf,
-                        ncores=detectCores(),
-                        thre.iter = 10^-6, # seuil pour commencer les iterations... 
-                        n.iter = 10 # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
-){
-  
-  Rho = matrix(rho, ncol(X), ncol(X))
-  
-  GLASSO = graphical.lasso(X = X, 
-                           Rho = Rho, 
-                           eps = 1e-6, 
-                           maxIt = maxit, 
-                           solver = solver) 
-  old_sig = GLASSO$Sigma
-  
-    BM_step = BM_gaussian_step(
-      verbosity = verbosity,
-      membership_type = membership_type, 
-      explore_min = explore_min, 
-      explore_max = explore_max,
-      exploration_factor = exploration_factor,
-      autosave = autosave,
-      plotting = plotting,
-      adj = GLASSO$Sigma)
-    
-    GLASSO = graphical.lasso(X = X,
-                             Rho = rho*BM_step$mat_penalty, 
-                             initial.guess = GLASSO$Theta,
-                             eps = 1e-6, maxIt = maxit, solver= solver) 
-    
-    first_estimate = GLASSO
-    first_BM = BM_step
-    
-    diff = sum(abs(old_sig-GLASSO$Sigma))
-    print(diff)
-    diff_vect = c(diff)
-    STOP = FALSE
-    iter = 1
-    
-    # if(diff>thre.iter & diff<10*length(GLASSO$Sigma)) cat("Starting iterations because of the difference\n")
-    # else if(diff>10*length(GLASSO$Sigma)){
-    #   STOP = TRUE
-    #   cat("It seems the first estimate is too high to even start, stopping for safety...\n")
-    # }
-    # 
-    
-    while(diff_vect[length(diff_vect)]>thre.iter & iter < n.iter & STOP == FALSE){
-      
-      old_sig = GLASSO$Sigma
-      
-      BM_step = BM_gaussian_step(
-        verbosity = verbosity,
-        membership_type = membership_type, 
-        explore_min = explore_min, 
-        explore_max = explore_max,
-        exploration_factor = exploration_factor,
-        autosave = autosave,
-        plotting = plotting,
-        adj = GLASSO$Sigma)
-      
-      
-      GLASSO = graphical.lasso(X = X,
-                               Rho = rho*BM_step$mat_penalty, 
-                               initial.guess = GLASSO$Theta,
-                               eps = 1e-6, maxIt = maxit, solver= solver) 
-      
-      diff_vect = c(diff_vect, sum(abs(old_sig-GLASSO$Sigma)))
-      print(diff_vect[length(diff_vect)])
-      
-      # if(diff_vect[length(diff_vect)]>length(GLASSO$Sigma)){
-      #   STOP = TRUE
-      #   cat("It seems the algorithm is not converging, stoping for safety... Keeping the first estimate as output \n")
-      #   GLASSO = first_estimate
-      #   BM_step = first_BM
-      # }
-      
-      iter = iter+1
-    }
-    
-    GLASSO$wi = GLASSO$Theta
-    GLASSO$w = GLASSO$Sigma
-  
-  return(list(GLASSO = GLASSO, BM_step = BM_step))
-}
