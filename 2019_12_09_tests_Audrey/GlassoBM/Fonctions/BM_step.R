@@ -22,7 +22,8 @@ BM_gaussian_step = function(
       autosave = autosave,
       plotting = plotting,
       verbosity = verbosity,
-      adj = adj)
+      adj = adj,
+      ncores = ncores)
     
     mat_penalty = matrix(1, ncol(adj), ncol(adj))
     
@@ -36,7 +37,8 @@ BM_gaussian_step = function(
       autosave = autosave,
       plotting = plotting,
       verbosity = verbosity,
-      adj = adj)
+      adj = adj,
+      ncores = ncores)
     
     BM_model$estimate()
     if(length(BM_model$memberships)>0){

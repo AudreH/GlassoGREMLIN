@@ -822,7 +822,8 @@ BMGlassoIter = function(X, rho,
       exploration_factor = exploration_factor,
       autosave = autosave,
       plotting = plotting,
-      adj = GLASSO$Sigma)
+      adj = GLASSO$Sigma,
+      ncores =  ncores)
     
     Rho = rho*BM_step$mat_penalty
     if(!penalize.diagonal) diag(Rho) = 0
@@ -860,7 +861,8 @@ BMGlassoIter = function(X, rho,
         exploration_factor = exploration_factor,
         autosave = autosave,
         plotting = plotting,
-        adj = GLASSO$Sigma)
+        adj = GLASSO$Sigma,
+        ncores =  ncores)
       
       Rho = rho*BM_step$mat_penalty
       if(!penalize.diagonal) diag(Rho) = 0

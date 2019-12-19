@@ -405,8 +405,7 @@ CVgl = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2),
       
       # update progress bar
       if (trace == "progress") {
-        setTxtProgressBar(progress, i + (k - 1) * 
-                            length(lam))
+        setTxtProgressBar(progress, i + (k - 1) * length(lam))
         
         # if not quiet, then print progress lambda
       } else if (trace == "print") {

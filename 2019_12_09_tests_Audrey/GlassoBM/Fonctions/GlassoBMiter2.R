@@ -39,7 +39,8 @@ glBM_CV = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
     exploration_factor = exploration_factor,
     autosave = autosave,
     plotting = plotting,
-    adj = GLASSO$Sigma)
+    adj = GLASSO$Sigma,
+    ncores = ncores)
   
   GLASSO = CVgraphical.lasso(X = X, S = GLASSO$Theta, nlam = nlam, lam.min.ratio = lam.min.ratio, 
                     lam = lam, diagonal = diagonal, path = path, tol = tol, maxit = maxit, 
@@ -75,7 +76,7 @@ glBM_CV = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
       exploration_factor = exploration_factor,
       autosave = autosave,
       plotting = plotting,
-      adj = GLASSO$Sigma)
+      adj = GLASSO$Sigma, ncores = ncores)
     
     
     GLASSO = CVgraphical.lasso(X = X, S = GLASSO$Theta, nlam = nlam, lam.min.ratio = lam.min.ratio, 
