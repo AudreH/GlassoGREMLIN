@@ -9,7 +9,7 @@ glBM_CV = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
                    cores = 1, 
                    trace = c("progress", "print", "none"),
                    V = NULL, # MODIF matrix of edge penalization. Multiplier of lambda.
-                   ## ARGUMENTS GREMLIN
+                   ## ARGUMENTS Block Model
                    membership_type,
                    verbosity=0,
                    autosave='',
@@ -22,13 +22,13 @@ glBM_CV = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
                    n.iter = 10 # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
                    ){
   
-  
+  listGLASSO = NULL
   GLASSO = CVgraphical.lasso(X = X, S = S, nlam = nlam, lam.min.ratio = lam.min.ratio, 
                              lam = lam, diagonal = diagonal, path = path, tol = tol, maxit = maxit, 
                              adjmaxit = adjmaxit, K = K, 
                              crit.cv = crit.cv, 
                              start = start, cores = cores, trace = trace, V = V, solver = solver)
-  
+  listGLASSO[[length(listGLASSO)+1]] = GLASSO
   old_sig = GLASSO$Sigma
   
   BM_step = BM_gaussian_step(
@@ -47,7 +47,7 @@ glBM_CV = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
                     adjmaxit = adjmaxit, K = K, 
                     crit.cv = crit.cv, 
                     start = start, cores = cores, trace = trace, V = BM_step$mat_penalty, solver = solver)
-  
+  listGLASSO[[length(listGLASSO)+1]] = GLASSO
   first_estimate = GLASSO
   first_BM = BM_step
   
@@ -56,13 +56,6 @@ glBM_CV = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
   diff_vect = c(diff)
   STOP = FALSE
   iter = 1
-  
-  # if(diff>thre.iter & diff<10*length(GLASSO$Sigma)) cat("Starting iterations because of the difference\n")
-  # else if(diff>10*length(GLASSO$Sigma)){
-  #   STOP = TRUE
-  #   cat("It seems the first estimate is too high to even start, stoping for safety...\n")
-  # }
-  
   
   while(diff_vect[length(diff_vect)]>thre.iter & iter < n.iter & STOP == FALSE){
     
@@ -84,23 +77,20 @@ glBM_CV = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
                                adjmaxit = adjmaxit, K = K, 
                                crit.cv = crit.cv, 
                                start = start, cores = cores, trace = trace, V = BM_step$mat_penalty, solver = solver)
-    
+    listGLASSO[[length(listGLASSO)+1]] = GLASSO
     diff_vect = c(diff_vect, sum(abs(old_sig-GLASSO$Sigma)))
     print(diff_vect[length(diff_vect)])
-    
-    # if(diff_vect[length(diff_vect)]>10*length(GLASSO$Sigma)){
-    #   STOP = TRUE
-    #   cat("It seems the algorithm is not converging, stoping for safety... Keeping the first estimate as output \n")
-    #   GLASSO = first_estimate
-    #   BM_step = first_BM
-    # }
     
     iter = iter+1
   }
   
   GLASSO$wi = GLASSO$Theta
   GLASSO$w = GLASSO$Sigma
+  mat_penalty = BM_step$mat_penalty
+  if(!diagonal) diag(mat_penalty) = 0
   
   return(list(BM_step = BM_step, 
-              GLASSO = GLASSO))
+              GLASSO = GLASSO, 
+              mat_penalty = mat_penalty,
+              listGLASSO = listGLASSO))
 }

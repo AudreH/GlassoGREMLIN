@@ -13,6 +13,7 @@ library(ggplot2)
 library(RColorBrewer)
 library(ComplexHeatmap)
 library(circlize)
+library(microbenchmark)
 
 dyn.load("Fonctions/inference_algos.so")
 sapply(dir("Fonctions/")[grep(".R", dir("Fonctions/"))], FUN = function(file) source(paste0("Fonctions/", file)))
@@ -33,14 +34,16 @@ for(i in 1:(nb_groupes)){
   set.seed(i*2000)
   Sigma_sim[which(classification==i), which(classification == i)] = runif(n = length(Sigma_sim[which(classification==i),which(classification == i)]), min = 30, max = 60)
 }
-Sigma_sim[is.na(Sigma_sim)] = runif(n = length(Sigma_sim[is.na(Sigma_sim)]), min = 0, max = 5)
-diag(Sigma_sim) = apply(Sigma_sim, 2, max) + 1
-Sigma_sim = as.matrix(nearPD(Sigma_sim)$mat)
+# Sigma_sim[is.na(Sigma_sim)] = runif(n = length(Sigma_sim[is.na(Sigma_sim)]), min = 0, max = 5)
+Sigma_sim[is.na(Sigma_sim)] = 0
+# diag(Sigma_sim) = apply(Sigma_sim, 2, max) + 1
+diag(Sigma_sim) = apply(Sigma_sim, 2, FUN = function(vect) sum(abs(vect))) + 1
+# Sigma_sim = as.matrix(nearPD(Sigma_sim)$mat)
 
 library(MASS)
 
 dat = mvrnorm(n = n_ind, mu = c(1:n_feat), Sigma = Sigma_sim)
-dat_c = scale(dat, center = TRUE, scale = FALSE) # scale = FALSE ?
+dat_c = scale(dat, center = TRUE, scale = FALSE) # scale = FALSE ? est-ce utile de toute façon ?
 
 column_ha = HeatmapAnnotation(Classification = as.factor(classification),
                               col = list("Classification" = c("1" = "blue", "2" = "azure3", "3" = "darkorchid3", "4" = "darksalmon", "5" = "darkolivegreen3")),
@@ -58,7 +61,8 @@ ComplexHeatmap::draw(Heatmap(solve(Sigma_sim), top_annotation = column_ha, name 
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 
 ComplexHeatmap::draw(Heatmap(Sigma_sim, top_annotation = column_ha, name = "Cov", column_title = "Covariance pattern used to simulate the data",
-                             col = colorRamp2(c(min(Sigma_sim), 0, max(Sigma_sim)), c("blue", "white", "red")), right_annotation = row_ha,
+                             col = colorRamp2(c(0, median(Sigma_sim), max(Sigma_sim)), c("white", "orange", "red")), 
+                             right_annotation = row_ha,
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 
@@ -137,15 +141,16 @@ ComplexHeatmap::draw(Heatmap(mat_penalty, top_annotation = column_ha, name = "Pe
 
 # ---- Test : alorithme 1 ----
 
-# Algorithme 1 : cross-validation : 
-# A l'intérieur d'un fold, pour un lambda donné, alternance entre glasso et BM jusqu'à "convergence" ou n.iter. 
+# Algorithme 1 : cross-validation :
+# A l'intérieur d'un fold, pour un lambda donné, alternance entre glasso et BM jusqu'à "convergence" ou n.iter.
 # Recuperation du meilleur lambda, et alternance glasso et BM sur jeu de données complet jusqu'à convergence ou n.iter.
 # l'étape BM donne une matrice de pénalité issue de l'estimation des moyennes des groupes, qui sert à compléter la pénalisation dans le glasso.
-# Output : Sigma estimée (et Omega estimée) ainsi que la matrice de penalisation estimée par le dernier BM. 
+# Output : Sigma estimée (et Omega estimée) ainsi que la matrice de penalisation estimée par le dernier BM.
 
-res1 = CVglassoBM(X = dat, nlam = 50, lam.min.ratio = 0.001,
+
+res1 = CVglassoBM(X = dat, nlam = 20, lam.min.ratio = 0.01,
                         diagonal = FALSE,
-                        maxit = 100,
+                        maxit = 50,
                         membership_type = "SBM_sym", 
                         verbosity = 0,
                         K = 5,
@@ -153,6 +158,7 @@ res1 = CVglassoBM(X = dat, nlam = 50, lam.min.ratio = 0.001,
                         explore_max = 6,
                         exploration_factor = 1.5,
                         autosave = '',
+                        plotting = "",
                         cores = 4,
                         crit.cv = "BIC",
                         trace= "none",
@@ -160,7 +166,7 @@ res1 = CVglassoBM(X = dat, nlam = 50, lam.min.ratio = 0.001,
                         thre.iter = 10^-3
                         )
 
-plot(CVglBM_res)
+plot(res1)
 
 ## Affichage des matrices de résultats
 ComplexHeatmap::draw(Heatmap(res1$Sigma, top_annotation = column_ha, name = "Cov", column_title = "Covariance structure found by 1st version of the algorithm",
@@ -175,22 +181,22 @@ ComplexHeatmap::draw(Heatmap(res1$Omega, top_annotation = column_ha, name = "ome
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom", 
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 
-ComplexHeatmap::draw(Heatmap(res1$V, top_annotation = column_ha, name = "Penalty", column_title = "Structure of the penalty matrix by 1st version of the algorithm",
-                             col = colorRamp2(c(0, 0.5, 1), c("white", "yellow", "red")),
+ComplexHeatmap::draw(Heatmap(res1$Rho, top_annotation = column_ha, name = "Penalty", column_title = "Structure of the penalty matrix by 1st version of the algorithm",
+                             col = colorRamp2(c(0, median(res1$Rho), max(res1$Rho)), c("white", "yellow", "red")),
                              right_annotation = row_ha,
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 
 # ---- Test : alorithme 2 ----
 
-# Algorithme 2 : 
+# Algorithme 2 :
 # Alternance entre cross-validation pour choix du lambda Glasso et BM jusqu'à convergence ou n.iter.
 # L'étape BM sert à estimer une matrice de pénalisation issue des moyennes des groupes trouvés, qui sert à compléter l'estimation de Sigma par la cross-validation pour le glasso.
 # Output : Dernière estimation de sigma (et Omega) ainsi que dernière estimation de la matrice de penalité.
 
-res2 = glBM_CV(X = dat, nlam = 50, lam.min.ratio = 0.001,
+res2 = glBM_CV(X = dat, nlam = 20, lam.min.ratio = 0.01,
         diagonal = FALSE,
-        maxit = 100,
+        maxit = 50,
         membership_type = "SBM_sym", 
         verbosity = 0,
         K = 5,
@@ -198,11 +204,14 @@ res2 = glBM_CV(X = dat, nlam = 50, lam.min.ratio = 0.001,
         explore_max = 6,
         exploration_factor = 1.5,
         autosave = '',
+        plotting = "",
         cores = 4,
         crit.cv = "BIC",
         trace= "none",
         n.iter = 25,
         thre.iter = 10^-3)
+
+# Print automatiquement la dernière étape. 
 
 ## Affichage des matrices de résultats
 ComplexHeatmap::draw(Heatmap(res2$GLASSO$Sigma, top_annotation = column_ha, name = "Cov", column_title = "Covariance structure found by 2nd version of the algorithm",
@@ -210,15 +219,11 @@ ComplexHeatmap::draw(Heatmap(res2$GLASSO$Sigma, top_annotation = column_ha, name
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom", 
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 
-ComplexHeatmap::draw(Heatmap(res2$BM_step$mat_penalty, top_annotation = column_ha, name = "Penalty", column_title = "Structure of the penalty matrix found by 2nd version of the algorithm",
-                             col = colorRamp2(c(0, 0.5, 1), c("white", "yellow", "red")),
+ComplexHeatmap::draw(Heatmap(res2$GLASSO$GLASSO$Rho, top_annotation = column_ha, name = "Penalty", column_title = "Structure of the penalty matrix found by 2nd version of the algorithm",
+                             col = colorRamp2(c(0, median(res2$GLASSO$GLASSO$Rho), max(res2$GLASSO$GLASSO$Rho)), c("white", "yellow", "red")),
                              right_annotation = row_ha,
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
-
-
-save.image("Session_final.RData")
-load("Session_final.RData")
 
 
 # ---- Differences matrices : -----
@@ -237,9 +242,9 @@ ComplexHeatmap::draw(Heatmap(abs(res2$GLASSO$Sigma - res1$Sigma), top_annotation
 
 # ---- Penalisation diagonale ? : ----
 
-res1_diag = CVglassoBM(X = dat, nlam = 50, lam.min.ratio = 0.001,
+res1_diag = CVglassoBM(X = dat, nlam = 20, lam.min.ratio = 0.01,
                         diagonal = TRUE,
-                        maxit = 100,
+                        maxit = 50,
                         membership_type = "SBM_sym", 
                         verbosity = 0,
                         K = 5,
@@ -255,8 +260,15 @@ res1_diag = CVglassoBM(X = dat, nlam = 50, lam.min.ratio = 0.001,
 )
 
 plot(res1_diag)
-sum(abs(res1_diag$V  - CVglBM_res$V)) # Visiblement ne change rien de mettre diag = TRUE, la penalisation trouvee est la meme ?
+sum(abs(res1_diag$Rho  - res1$Rho)) # Visiblement ne change rien de mettre diag = TRUE, la penalisation trouvee est la meme ?
 # aucune option dans le grpahical.lasso puor el faire, mettre la diagonale ne sert en fait à rien.
+
+## Affichage des matrices de résultats
+ComplexHeatmap::draw(Heatmap(res1$Sigma, top_annotation = column_ha, name = "Cov", column_title = "Covariance structure 1st version of the algorithm diag = FALSE",
+                             col = colorRamp2(c(min(res1$Sigma), 0, max(res1$Sigma)), c("blue", "white", "red")),
+                             right_annotation = row_ha, 
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom", 
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
 
 ## Affichage des matrices de résultats
 ComplexHeatmap::draw(Heatmap(res1_diag$Sigma, top_annotation = column_ha, name = "Cov", column_title = "Covariance structure 1st version of the algorithm diag = TRUE",
@@ -271,8 +283,142 @@ ComplexHeatmap::draw(Heatmap(res1_diag$Omega, top_annotation = column_ha, name =
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom", 
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 
-ComplexHeatmap::draw(Heatmap(res1_diag$V, top_annotation = column_ha, name = "Penalty", column_title = "Structure of the penalty matrix 1st version of the algorithm diag = TRUE",
+ComplexHeatmap::draw(Heatmap(res1_diag$Rho, top_annotation = column_ha, name = "Penalty", column_title = "Structure of the penalty matrix 1st version of the algorithm diag = TRUE",
+                             col = colorRamp2(c(0, median(res1$Rho), max(res1$Rho)), c("white", "yellow", "red")),
+                             right_annotation = row_ha,
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+
+# ---- Penalisation diagonale ? : ----
+
+res2_diag = glBM_CV(X = dat, nlam = 50, lam.min.ratio = 0.01,
+                    diagonal = TRUE,
+                    maxit = 50,
+                    membership_type = "SBM_sym", 
+                    verbosity = 0,
+                    K = 10,
+                    explore_min = 4, 
+                    explore_max = 6,
+                    exploration_factor = 1.5,
+                    plotting = "",
+                    autosave = '',
+                    cores = 4,
+                    crit.cv = "BIC",
+                    trace= "none",
+                    n.iter = 25,
+                    thre.iter = 10^-6)
+
+# Print automatiquement la dernière étape. 
+plot(res2_diag$GLASSO, main = "Etape finale")
+# lapply(res2_diag$listGLASSO, plot)
+lapply(res2_diag$listGLASSO, FUN = function(x) min(x$AVG.error))
+
+## Affichage des matrices de résultats
+ComplexHeatmap::draw(Heatmap(res2_diag$GLASSO$Sigma, top_annotation = column_ha, name = "Cov", column_title = "Covariance structure 2nd version of the algorithm diag TRUE",
+                             col = colorRamp2(c(min(res2_diag$GLASSO$Sigma), 0, max(res2_diag$GLASSO$Sigma)), c("blue", "white", "red")),  right_annotation = row_ha, 
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom", 
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+
+ComplexHeatmap::draw(Heatmap(res2_diag$BM_step$mat_penalty, top_annotation = column_ha, name = "Penalty", column_title = "Structure of the penalty matrix 2nd version of the algorithm diag TRUE",
                              col = colorRamp2(c(0, 0.5, 1), c("white", "yellow", "red")),
                              right_annotation = row_ha,
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
+
+
+
+# ---- Temps calcul : ----
+
+n_eval = 2
+res_time = microbenchmark(
+  Algo1 =  CVglassoBM(X = dat, nlam = 20, lam.min.ratio = 0.01,
+                      diagonal = FALSE,
+                      maxit = 50,
+                      membership_type = "SBM_sym", 
+                      verbosity = 0,
+                      K = 5,
+                      explore_min = 4, 
+                      explore_max = 6,
+                      exploration_factor = 1.5,
+                      autosave = '',
+                      plotting = "",
+                      cores = 4,
+                      crit.cv = "BIC",
+                      trace= "none",
+                      n.iter = 25,
+                      thre.iter = 10^-3
+  ),
+  Algo2 = glBM_CV(X = dat, nlam = 20, lam.min.ratio = 0.01,
+                  diagonal = FALSE,
+                  maxit = 50,
+                  membership_type = "SBM_sym", 
+                  verbosity = 0,
+                  K = 5,
+                  explore_min = 4, 
+                  explore_max = 6,
+                  exploration_factor = 1.5,
+                  autosave = '',
+                  plotting = "",
+                  cores = 4,
+                  crit.cv = "BIC",
+                  trace= "none",
+                  n.iter = 25,
+                  thre.iter = 10^-3),
+  
+  times = n_eval
+)
+
+# Resultats 
+res_time
+
+# ---- SAVE : ----
+save.image("Session_final.RData")
+load("Session_final.RData")
+
+# ---- Resultats performance: ----
+
+load("Session_final.RData")
+
+# Covariance matrix:
+v = list(Sigma_sim = Sigma_sim, Sigma_dat = cov(dat), "res1" = res1$Sigma, "res2" = res2$GLASSO$Sigma, "res1_diag" = res1_diag$Sigma, "res2_diag" = res2_diag$GLASSO$Sigma)
+z = outer(v,v, Vectorize(function(x,y) sum(abs(x-y)))) 
+round(z, 2)
+
+ComplexHeatmap::draw(Heatmap(abs(res2$GLASSO$Sigma - res1$Sigma), top_annotation = column_ha, name = "Diff", column_title = "diff between algos, diag = FALSE",
+                             # col = colorRamp2(c(min(res2_diag$GLASSO$Sigma), 0, max(res2_diag$GLASSO$Sigma)), c("blue", "white", "red")), 
+                             right_annotation = row_ha, 
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom", 
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+
+ComplexHeatmap::draw(Heatmap(abs(res2$GLASSO$Sigma - Sigma_sim), top_annotation = column_ha, name = "Diff", column_title = "diff between res2 and simulation, diag=FALSE",
+                             col = colorRamp2(c(0, max(abs(res2$GLASSO$Sigma - Sigma_sim))), c("white", "red")),
+                             right_annotation = row_ha, 
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom", 
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+
+# Inverse Cov matrix:
+v = list(Sigma_sim = solve(Sigma_sim), Sigma_dat = solve(cov(dat)), "res1" = res1$Omega, "res2" = res2$GLASSO$Omega, "res1_diag" = res1_diag$Omega, "res2_diag" = res2_diag$GLASSO$Omega)
+z = outer(v,v, Vectorize(function(x,y) sum(abs(x-y)))) 
+round(z, 2)
+
+ComplexHeatmap::draw(Heatmap(abs(res2$GLASSO$Omega - solve(Sigma_sim)), top_annotation = column_ha, name = "Diff", column_title = "diff between res2 and simulation, diag=FALSE",
+                             col = colorRamp2(c(0, max(abs(res2$GLASSO$Omega - solve(Sigma_sim)))), c("white", "red")),
+                             right_annotation = row_ha, 
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom", 
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+
+# Covariance matrix without taking the diagonal:
+v = list(Sigma_sim = Sigma_sim, Sigma_dat = cov(dat), "res1" = res1$Sigma, "res2" = res2$GLASSO$Sigma, "res1_diag" = res1_diag$Sigma, "res2_diag" = res2_diag$GLASSO$Sigma)
+z = outer(v,v, Vectorize(function(x,y){diag(x) = diag(y) = 0 ; sum(abs(x-y))})) 
+round(z, 2)
+
+#### Block par block ####
+
+lists_indices = lapply(unique(classification)[order(unique(classification))], FUN = function(x) which(classification == x))
+names(lists_indices) = unique(classification)[order(unique(classification))]
+
+cov_block = outer(lists_indices , lists_indices, Vectorize(function(x,y) sum(abs(cov(dat)[x,y] - res2$GLASSO$Sigma[x,y]))))
+
+outer(lists_indices , lists_indices, Vectorize(function(x,y) sum(abs(res1$Sigma[x,y] - res2$GLASSO$Sigma[x,y]))))
+outer(lists_indices , lists_indices, Vectorize(function(x,y) sum(abs(res1_diag$Sigma[x,y] - res2_diag$GLASSO$Sigma[x,y]))))
+outer(lists_indices , lists_indices, Vectorize(function(x,y) sum(abs(Sigma_sim[x,y] - res2$GLASSO$Sigma[x,y]))))

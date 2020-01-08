@@ -183,6 +183,7 @@ CVgraphical.lasso = function(X = NULL,
     GLASSO$wi = GLASSO$Theta
     GLASSO$w = GLASSO$Sigma
     GLASSO$lam = lam_
+    GLASSO$Rho = Rho
     
   } else { # No cross_validation case
     
@@ -227,7 +228,7 @@ CVgraphical.lasso = function(X = NULL,
     GLASSO$wi = GLASSO$Theta
     GLASSO$w = GLASSO$Sigma
     GLASSO$lam = lam
-    
+    GLASSO$Rho = Rho
   }
   
   
@@ -238,14 +239,16 @@ CVgraphical.lasso = function(X = NULL,
   }
   
   # compute penalized loglik
-  if(is.null(V)){ ### MODIF 
-    loglik = (-n/2) * (sum(GLASSO$wi * S) - determinant(GLASSO$wi, 
-                                                        logarithm = TRUE)$modulus[1] + GLASSO$lam * sum(abs(C * GLASSO$wi)))
-  }else{
-    loglik = (-n/2) * (sum(GLASSO$wi * S) - determinant(GLASSO$wi, 
-                                                        logarithm = TRUE)$modulus[1] +  GLASSO$lam * sum(V * abs(C * GLASSO$wi)))
-  }
+  # if(is.null(V)){ ### MODIF 
+  #   loglik = (-n/2) * (sum(GLASSO$wi * S) - determinant(GLASSO$wi, 
+  #                                                       logarithm = TRUE)$modulus[1] + GLASSO$lam * sum(abs(C * GLASSO$wi)))
+  # }else{
+  #   loglik = (-n/2) * (sum(GLASSO$wi * S) - determinant(GLASSO$wi, 
+  #                                                       logarithm = TRUE)$modulus[1] +  GLASSO$lam * sum(V * abs(C * GLASSO$wi)))
+  # }
   
+    loglik = (-n/2) * (sum(GLASSO$wi * S) - determinant(GLASSO$wi,
+                                                        logarithm = TRUE)$modulus[1] + sum(abs(GLASSO$Rho * GLASSO$wi)))
   
   
   # return values
@@ -258,7 +261,7 @@ CVgraphical.lasso = function(X = NULL,
   returns = list(Call = call, Iterations = GLASSO$niter, 
                  Tuning = tuning, Lambdas = lam, maxit = maxit, Omega = GLASSO$wi, 
                  Sigma = GLASSO$w, Path = Path, Loglik = loglik, MIN.error = MIN.error, 
-                 AVG.error = AVG.error, CV.error = CV.error)
+                 AVG.error = AVG.error, CV.error = CV.error, GLASSO = GLASSO)
   
   class(returns) = "CVglasso"
   return(returns)
@@ -634,6 +637,7 @@ print.CVglasso = function(x, ...) {
 
 # ----- PLOT FUNC : -----
 plot.CVglasso = function(x, type = c("line", "heatmap"), footnote = TRUE, 
+                         main = "Cross-Validation Errors",
                          ...) {
   
   # check
@@ -651,9 +655,9 @@ plot.CVglasso = function(x, type = c("line", "heatmap"), footnote = TRUE,
     
     # produce line graph
     graph = ggplot(summarise(group_by(cv, lam), Means = mean(Errors)), 
-                   aes(log10(lam), Means)) + geom_jitter(width = 0.2, 
-                                                         color = "navy blue") + theme_minimal() + geom_line(color = "red") + 
-      labs(title = "Cross-Validation Errors", y = "Error") + 
+                   aes(log10(lam), Means)) + 
+      geom_jitter(width = 0.2, color = "navy blue") + theme_minimal() + geom_line(color = "red") + 
+      labs(title = main, y = "Error") + 
       geom_vline(xintercept = x$Tuning[1], linetype = "dotted")
     
   } else {

@@ -219,7 +219,7 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
     
     GLASSO = res$GLASSO
     GLASSO$lam = lam_
-    V = res$BM_step$mat_penalty
+    Rho = res$Rho 
     
   } else {
     
@@ -267,23 +267,12 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
     GLASSO = res$GLASSO
     
     GLASSO$lam = lam
-    V = res$BM_step$mat_penalty
-    
-  }
-  
-  
-  # option to penalize diagonal
-  if (diagonal) {
-    C = 1
-  } else {
-    C = 1 - diag(ncol(S))
+    Rho = res$Rho
   }
   
   # compute penalized loglik
-  ### MODIF 
-  loglik = (-n/2) * (sum(GLASSO$wi * S) - determinant(GLASSO$wi,
-                                                      logarithm = TRUE)$modulus[1] +
-                       GLASSO$lam * sum(V * abs(C * GLASSO$wi)))
+  ### MODIF (+ C deja compris dans V : si diagonal, les coeffs diag de V sont non nuls)
+  loglik = (-n/2) * (sum(GLASSO$wi * S) - determinant(GLASSO$wi, logarithm = TRUE)$modulus[1] + sum(Rho * abs(GLASSO$wi)))
   
   # return values
   tuning = matrix(c(log10(GLASSO$lam), GLASSO$lam), ncol = 2)
@@ -299,7 +288,7 @@ CVglassoBM = function(X = NULL, S = NULL, nlam = 10, lam.min.ratio = 0.01,
                  maxit = maxit,
                  Omega = GLASSO$wi,
                  Sigma = GLASSO$w,
-                 V = V,
+                 Rho = Rho,
                  Path = Path, Loglik = loglik, MIN.error = MIN.error, 
                  AVG.error = AVG.error, CV.error = CV.error)
   
@@ -568,7 +557,7 @@ CVP_glBM = function(X = NULL, S = NULL, lam = 10^seq(-2, 2, 0.2),
   ind = sample(n)
   k = NULL
   CV = foreach(k = 1:K, 
-               .packages = c("CVglasso", "glasso", "GREMLIN", "igraph", "network", "simone", "blockmodels"),
+               .packages = c("CVglasso", "glasso", "igraph", "network", "simone", "blockmodels"),
                .combine = "cbind", 
                .inorder = FALSE) %dopar% {
                  
@@ -792,14 +781,13 @@ BMGlassoIter = function(X, rho,
                         trace = FALSE,
                         solver = "shooting",
                         membership_type, 
-                        # adj, 
                         verbosity=0,
                         autosave='',
                         plotting=character(0),
                         exploration_factor=1.5,
                         explore_min=4,
                         explore_max=Inf,
-                        ncores=detectCores(),
+                        ncores=detectCores(), # ncores pour BM
                         thre.iter = 10^-6, # seuil pour commencer les iterations... 
                         n.iter = 10 # pas les iterations pour le glasso, mais les iterations pour l'alternance Glasso BM
 ){
@@ -842,13 +830,6 @@ BMGlassoIter = function(X, rho,
     STOP = FALSE
     iter = 1
     
-    # if(diff>thre.iter & diff<10*length(GLASSO$Sigma)) cat("Starting iterations because of the difference\n")
-    # else if(diff>10*length(GLASSO$Sigma)){
-    #   STOP = TRUE
-    #   cat("It seems the first estimate is too high to even start, stopping for safety...\n")
-    # }
-    # 
-    
     while(diff_vect[length(diff_vect)]>thre.iter & iter < n.iter & STOP == FALSE){
       
       old_sig = GLASSO$Sigma
@@ -874,19 +855,11 @@ BMGlassoIter = function(X, rho,
       
       diff_vect = c(diff_vect, sum(abs(old_sig-GLASSO$Sigma)))
       print(diff_vect[length(diff_vect)])
-      
-      # if(diff_vect[length(diff_vect)]>length(GLASSO$Sigma)){
-      #   STOP = TRUE
-      #   cat("It seems the algorithm is not converging, stoping for safety... Keeping the first estimate as output \n")
-      #   GLASSO = first_estimate
-      #   BM_step = first_BM
-      # }
-      
       iter = iter+1
     }
     
     GLASSO$wi = GLASSO$Theta
     GLASSO$w = GLASSO$Sigma
   
-  return(list(GLASSO = GLASSO, BM_step = BM_step))
+  return(list(GLASSO = GLASSO, BM_step = BM_step, Rho = Rho))
 }
