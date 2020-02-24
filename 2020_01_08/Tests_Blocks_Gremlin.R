@@ -88,21 +88,21 @@ A_GLASSO <- ifelse(gl1$w!=0 & row(gl1$w)!=col(gl1$w),1,0)
 NetA = defineNetwork(A_GLASSO, typeInter = "diradj", rowFG = "Features", colFG = "Features")
 
 gr1 = multipartiteBM(list_Net = list(Net), namesFG = "Features",
-                      v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 3)
+                     v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 5)
 
-gr1A = multipartiteBM(list_Net = list(NetA), namesFG = "Features",
-                     v_distrib = "bernoulli", v_Kmin = 2, v_Kmax = 3)
+# gr1A = multipartiteBM(list_Net = list(NetA), namesFG = "Features",
+# v_distrib = "bernoulli", v_Kmin = 2, v_Kmax = 3)
 
 # gr1 = multipartiteBMFixedModel(list_Net = list(Net), namesFG = c("Features"),
-                               # v_distrib = c("gaussian"), v_K = c(2))
+# v_distrib = c("gaussian"), v_K = c(2))
 # gr1 = multipartiteBMFixedModel(list_Net = list(Net, Net2), namesFG = c("Features", "Feat"),
-                     # v_distrib = c("gaussian", "gaussian"), v_K = c(2, 2)) # N'a pas l'air de fonctionner quand on met qu'une seule matrice -> prévenir Sophie.
+# v_distrib = c("gaussian", "gaussian"), v_K = c(2, 2)) # N'a pas l'air de fonctionner quand on met qu'une seule matrice -> prévenir Sophie.
 
 # clustr = gr1$fittedModel[[1]]$paramEstim$Z$Features
 clustr = gr1$fittedModel[[1]]$paramEstim$Z[[1]]
-clustrA = gr1A$fittedModel[[1]]$paramEstim$Z[[1]]
+# clustrA = gr1A$fittedModel[[1]]$paramEstim$Z[[1]]
 NID(clustr, classification)
-NID(clustrA, classification) # au moins, le gaussien apporte de l'info... Dans ce cas là en tout cas. 
+# NID(clustrA, classification) # au moins, le gaussien apporte de l'info... Dans ce cas là en tout cas.
 
 distrib_groups = gr1$fittedModel[[1]]$paramEstim$list_theta$FeaturesFeatures
 set.seed(1992)
@@ -130,16 +130,17 @@ sum(abs(gl2$w - Sigma_sim)) # Le besoin d'itérer est bien là. difference bien 
 # On ajuste par le GREMLIN/BM.
 # On refait un Glasso avec une matrice de penalisation ajustee selon les groupes que l'on a trouve. 
 # Mais si les groupes trouves sont "mauvais" ? c'est le cas ici. 
- 
+
 # ---- Tests sur boucles : ----
 
-n_iter = 20
-lambda_seq = seq(0.01, 0.2, length.out = 20)
+n_iter = 25
+lambda_seq = seq(0.01, 0.15, length.out = 5)
 # lambda_seq = seq(0.01, 0.5, length.out = 2)
 listLambda = list()
 
 for(lam in lambda_seq){
   cat("** Lambda : ", lam, "\n")
+  # lam = lambda_seq[1]
   
   list_res_glasso = list()
   list_res_gremlin = list()
@@ -147,6 +148,7 @@ for(lam in lambda_seq){
   list_NID = list()
   list_diff_cov_sim = list()
   list_diff_iter_prec = list()
+  list_link = list()
   
   gl0 = gl1 = gr0 = NULL
   
@@ -168,19 +170,26 @@ for(lam in lambda_seq){
   
   distrib_groups = gr0$fittedModel[[1]]$paramEstim$list_theta$FeaturesFeatures
   set.seed(1992)
-  link1 = matrix(pnorm(0, as.numeric(distrib_groups$mean), sqrt(as.numeric(distrib_groups$var)), lower.tail = FALSE), ncol = ncol(distrib_groups$mean), nrow = nrow(distrib_groups$mean))
+  link1 = matrix(pnorm(0, abs(as.numeric(distrib_groups$mean)), sqrt(as.numeric(distrib_groups$var)), lower.tail = FALSE), ncol = ncol(distrib_groups$mean), nrow = nrow(distrib_groups$mean))
   link = link1[clustr, clustr]
+  list_link[[length(list_link)+1]] = 1-link
   
-  gl1 = glassoFast(S = cov(dat), rho = 1-link, start = "warm", wi.init = gl0$wi, w.init = gl0$w)
+  gl1 = glassoFast(S = cov(dat), rho = lam*(1-link), start = "warm", wi.init = gl0$wi, w.init = gl0$w)
   list_res_glasso[[length(list_res_glasso)+1]] = gl1
   list_diff_cov_sim[[length(list_diff_cov_sim)+1]] = sum(abs(list_res_glasso[[length(list_res_glasso)]]$w - Sigma_sim))
   list_diff_iter_prec[[length(list_diff_iter_prec)+1]] = sum(abs(list_res_glasso[[length(list_res_glasso)]]$w - list_res_glasso[[length(list_res_glasso) - 1 ]]$w))
   
-  for(i in 1:n_iter){
+  # ComplexHeatmap::draw(Heatmap(1-link, top_annotation = column_ha, name = "Penalty", column_title = "A priori penalty (from GREMLIN to GLASSO)",
+                               # col = colorRamp2(c(0, 0.5, 1), c("white", "yellow", "red")), right_annotation = row_ha,
+                               # heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom",
+                       # annotation_legend_side = "bottom", merge_legend = TRUE)
+  
+  i = 1
+  while(list_diff_iter_prec[[length(list_diff_iter_prec)]]>10^-3 && i<n_iter){
     cat("Iter ", i, "\n")
     Net = defineNetwork(list_res_glasso[[length(list_res_glasso)]]$w , typeInter = "diradj", rowFG = "Features", colFG = "Features")
     gr = multipartiteBM(list_Net = list(Net), namesFG = "Features",
-                         v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 3, verbose = FALSE)
+                        v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 3, verbose = FALSE)
     list_res_gremlin[[length(list_res_gremlin)+1]] = gr
     
     clustr = gr$fittedModel[[1]]$paramEstim$Z[[1]]
@@ -190,38 +199,50 @@ for(lam in lambda_seq){
     
     distrib_groups = gr$fittedModel[[1]]$paramEstim$list_theta$FeaturesFeatures
     set.seed(1992)
-    link1 = matrix(pnorm(0, as.numeric(distrib_groups$mean), sqrt(as.numeric(distrib_groups$var)), lower.tail = FALSE), ncol = ncol(distrib_groups$mean), nrow = nrow(distrib_groups$mean))
+    link1 = matrix(pnorm(0, abs(as.numeric(distrib_groups$mean)), sqrt(as.numeric(distrib_groups$var)), lower.tail = FALSE), ncol = ncol(distrib_groups$mean), nrow = nrow(distrib_groups$mean))
     link = link1[clustr, clustr]
+    list_link[[length(list_link)+1]] = 1-link
     
     gl = glassoFast(S = cov(dat), rho = 1-link, start = "warm", wi.init = list_res_glasso[[length(list_res_glasso)]]$wi, w.init = list_res_glasso[[length(list_res_glasso)]]$w)
     list_res_glasso[[length(list_res_glasso)+1]] = gl
     list_diff_cov_sim[[length(list_diff_cov_sim)+1]] = sum(abs(list_res_glasso[[length(list_res_glasso)]]$w - Sigma_sim))
     list_diff_iter_prec[[length(list_diff_iter_prec)+1]] = sum(abs(list_res_glasso[[length(list_res_glasso)]]$w - list_res_glasso[[length(list_res_glasso) - 1 ]]$w))
-    
+    i = i+1
   }
   
   listLambda[[length(listLambda) +1 ]] = list(
-  "glasso" = list_res_glasso,
-  "gremlin" = list_res_gremlin ,
-  "clusters" = list_clusters,
-  "NID" = list_NID,
-  "diff_sim" = list_diff_cov_sim,
-  "diff_prev_iter" = list_diff_iter_prec
+    "glasso" = list_res_glasso,
+    "gremlin" = list_res_gremlin ,
+    "clusters" = list_clusters,
+    "NID" = list_NID,
+    "diff_sim" = list_diff_cov_sim,
+    "diff_prev_iter" = list_diff_iter_prec,
+    "link" = list_link
   )
 }
 
+## Pas trop de changement dans les matrices de pénalisation, quelle que soit la penalisation ou l'iteration que l'on prenne. Etrange. 
+## Ou alors c'est juste trop petit pour qu'on voit quoi que ce soit. 
+lapply(listLambda[c(1,2)], FUN = function(x){
+  ComplexHeatmap::draw(Heatmap(x$link[[3]], top_annotation = column_ha, name = "Penalty", column_title = "A priori penalty (from GREMLIN to GLASSO)",
+                               col = colorRamp2(c(0, 0.25, 0.5), c("white", "yellow", "red")), right_annotation = row_ha,
+                               heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom",
+                       annotation_legend_side = "bottom", merge_legend = TRUE)
+})
+
+
 # length(listLambda)
 
-df_test = do.call("rbind", lapply(listLambda, FUN = function(liste){
-  # liste = listLambda[[1]]
-  t(do.call("cbind", list("Clusters" = c(NA, unlist(liste$clusters)), "NID" = c(NA, unlist(liste$NID)),
-                          "diff_sim" = c(unlist(liste$diff_sim)), "diff_prev_iter" = c(NA, unlist(liste$diff_prev_iter)))))
+df_test = do.call("rbind",lapply(1:length(listLambda), FUN = function(i){
+  # i = 1
+  liste = listLambda[[i]]
+  df = data.frame(t(do.call("cbind", list("Clusters" = c(NA, unlist(liste$clusters)), "NID" = c(NA, unlist(liste$NID)),
+                                 "diff_sim" = c(unlist(liste$diff_sim)), "diff_prev_iter" = c(NA, unlist(liste$diff_prev_iter))))))
+  colnames(df) = c("GL0", "GRGL0", paste0("GRGL", 1:(ncol(df)-2)))
+  df$response = rownames(df)
+  df$lambda = lambda_seq[i] 
+  df
 }))
-colnames(df_test) = c("GL0", "GRGL0", paste0("GRGL", 1:n_iter))
-df_test = data.frame(df_test)
-df_test$lambda = rep(lambda_seq[1:length(listLambda)], each = 4)
-df_test$response = rep(c("Clusters", "NID", "Diff_Sim", "Diff_prev_iter"), time = nrow(df_test)/4)
-# listLambda[[1]]$NID
 
 library(reshape2)
 library(ggplot2)
@@ -231,15 +252,26 @@ df_melt$lambda = factor(df_melt$lambda)
 
 ggplot(data = df_melt, aes(x = variable, y = value, color = lambda, group = lambda)) +
   geom_point() + geom_line() +
-  facet_grid(response~., scales = "free")
+  facet_grid(response~., scales = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 # On voit rien, variations trop petites après la boucle 0.
-
 
 df_melt2 = df_melt[-which(df_melt$variable%in%c("GL0", "GRGL0")),]
 
 ggplot(data = df_melt2, aes(x = variable, y = value, color = lambda, group = lambda)) +
   geom_point() + geom_line() +
-  facet_grid(response~., scales = "free")
+  facet_grid(response~., scales = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 # On voit toujours rien. 
+
+df_melt2_NID = df_melt2[df_melt2$response== "NID", ]
+df_aggregate = aggregate(df_melt2_NID$value, by = list("Lambda" = df_melt2_NID$lambda), FUN = function(vect) c("MinNID" = min(vect), "IterForMin" = which.min(vect)))
+df_aggregate = data.frame("Lambda" = df_aggregate$Lambda, df_aggregate$x)
+df_aggregate
+
+df_melt2_Groups = df_melt2[df_melt2$response== "Clusters", ]
+df_aggregate = aggregate(df_melt2_Groups$value, by = list("Lambda" = df_melt2_Groups$lambda), FUN = function(vect) c("MaxClusters" = max(vect), "IterForMax" = which.max(vect)))
+df_aggregate = data.frame("Lambda" = df_aggregate$Lambda, df_aggregate$x)
+df_aggregate # Correspond parfaitement avec le NID, normal.
 
