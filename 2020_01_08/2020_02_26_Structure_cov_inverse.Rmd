@@ -1,0 +1,492 @@
+---
+title: "2020_02_26_Structure_cov_inverse"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_print: paged
+date: '`r format(Sys.time(), "%d %B, %Y at %H:%M:%S")`'
+---
+
+```{r}
+rm(list = ls())
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, fig.ext = "png", fig.path = "2020_02_26_Structure_cov_inverse/", fig.width = 10, fig.height = 6, fig.align = "center")
+```
+
+# Packages
+
+```{r}
+library(Matrix)
+library(GREMLIN)
+library(aricode)
+library(glassoFast)
+
+library(ggplot2)
+library(reshape2)
+
+library(MASS)
+
+library(RColorBrewer)
+library(ComplexHeatmap)
+library(circlize)
+
+library(igraph)
+```
+
+```{r}
+source("Functions.R")
+```
+
+# Fonctions simulations
+
+## Reprise code @Julien (janine)
+
+https://github.com/jchiquet/janine/blob/master/R/utils.R
+
+```{r}
+#' rSBM_Laplace
+#'
+#' Generate a symmetric matrix under the stochastic block model
+#' with a Laplace distribution as the emission law of the edges.
+#'
+#' @param p number of nodes
+#' @param Lambda a QxQ matrix of connectivity parameters
+#' @param alpha a size-Q vector of mixture
+#' @return an igraph object: undirected weigthed graph with a attribute "membership" for the vertices
+#' @import Matrix igraph
+#' @importFrom rmutil rlaplace
+
+rSBM_Laplace <- function(p, Lambda, alpha = c(1)) {
+  Q <- length(alpha)
+  Z <- t(rmultinom(p, 1, prob = alpha))
+  A <- matrix(0, p, p)
+  subset <- upper.tri(A)
+  lambda <- (Z %*% Lambda %*% t(Z))[subset]
+  x <- rmutil::rlaplace(n=p*(p-1)/2, m = 0, s = lambda)
+  A[subset] <- x
+  A <- A + t(A)
+  mySBM <- graph_from_adjacency_matrix(A, weighted = TRUE, mode = "undirected")
+  vertex_attr(mySBM, "membership") <- Z %*% 1:Q
+  mySBM
+}
+```
+
+Fonction de simulation des données :
+
+```{r}
+rmvnorm_SBM <- function(n, sbm) {
+  Omega <- as_adj(sbm, attr = "weight")
+  diag(Omega) <- colSums(abs(Omega))
+  Sigma <- as.matrix(chol2inv(chol(Omega)))
+  res <- mvtnorm::rmvnorm(n, sigma = Sigma)
+  res
+}
+```
+
+## Adaptation cas gaussien
+
+```{r}
+rSBM_gaussian <- function(p, Lambda, alpha = c(1), Mean = NULL) {
+  # alpha = alpha.
+  # Lambda = Lambda.
+  # p = n_feat
+  
+  Q <- length(alpha)
+  Z <- t(rmultinom(p, 1, prob = alpha))
+  # Pour test :
+  # Z2 = apply(Z, 1, which.max)
+  # Z = Z[order(Z2),] # Rangement pour structure bloc visible.
+  A <- matrix(0, p, p)
+  subset <- upper.tri(A)
+  lambda <- (Z %*% Lambda %*% t(Z))
+  if(is.null(Mean)){
+      Mean = matrix(0, ncol(Lambda), ncol(Lambda))
+      set.seed(2000)
+      diag(Mean) = sample(1:(10*ncol(Lambda)), size = ncol(Lambda), replace = FALSE)
+  }
+  means <- (Z %*% Mean %*% t(Z))
+  # x <- rnorm(n = p*(p-1)/2, mu = 0, Sigma = lambda)
+  x <- mapply(function(m, s){rnorm(m, s, n=1)}, m=means[subset], s= sqrt(lambda[subset]))
+  A[subset] <- x
+  
+  A <- A + t(A)
+  mySBM <- graph_from_adjacency_matrix(A, weighted = TRUE, mode = "undirected")
+  vertex_attr(mySBM, "membership") <- Z %*% 1:Q
+  mySBM
+}
+```
+
+```{r}
+rmvnorm_SBM <- function(n, sbm) {
+  Omega <- as_adj(sbm, attr = "weight")
+  diag(Omega) <- colSums(abs(Omega))
+  Sigma <- as.matrix(chol2inv(chol(Omega)))
+  res <- mvtnorm::rmvnorm(n, sigma = Sigma)
+  res
+}
+```
+
+# Simulation des données
+
+## Définition paramètres et simulations
+
+```{r}
+n_ind = 500
+n_feat = 20
+nb_groupes = 2
+```
+
+```{r}
+alpha. = rep(1/nb_groupes, nb_groupes)
+alpha.
+```
+
+```{r}
+Means. = matrix(0, nb_groupes, nb_groupes)
+diag(Means.) = 0
+Means.
+```
+
+```{r}
+Lambda. = matrix(0, nb_groupes, nb_groupes)
+diag(Lambda.) = 10
+Lambda.
+```
+
+```{r}
+set.seed(1992)
+Sim_SBM = rSBM_gaussian(n_feat, Lambda., alpha., Means.)
+```
+
+```{r}
+dat = rmvnorm_SBM(n = n_ind, Sim_SBM)
+```
+
+```{r}
+classification = V(Sim_SBM)$membership
+table(classification)
+```
+
+## Annotations pour heatmaps
+
+```{r}
+column_ha = HeatmapAnnotation(Clusters = as.factor(classification),
+                              col = list("Clusters" = c("1" = "blue", "2" = "azure3", "3" = "darkorchid3", "4" = "darksalmon", "5" = "darkolivegreen3")),
+                              annotation_legend_param = list(nrow = 1)
+)
+
+row_ha = HeatmapAnnotation(Clusters = as.factor(classification),
+                           col = list("Clusters" = c("1" = "blue", "2" = "azure3", "3" = "darkorchid3", "4" = "darksalmon", "5" = "darkolivegreen3")), 
+                           which = "row",
+                           show_annotation_name = FALSE, show_legend = FALSE,  annotation_legend_param = list(nrow = 1))
+```
+
+## Visualisation données simulées
+
+```{r}
+Omega_sim = as_adjacency_matrix(Sim_SBM, attr = "weight", sparse = FALSE)
+```
+
+```{r, fig.height=5, fig.width = 10, echo = FALSE}
+grid.newpage()
+pushViewport(viewport(x = 0, width = 0.5, just = "left"))
+
+hc = hclust(dist(Omega_sim), method = "complete")
+ComplexHeatmap::draw(Heatmap(Omega_sim, top_annotation = column_ha, name = "InvCov", column_title = "Inverse Covariance pattern used to simulate the data",
+                             col = colorRamp2(c(-max(Omega_sim), 0, max(Omega_sim)), c("blue", "white", "red")),
+                             right_annotation = row_ha, 
+                             row_dend_reorder = hc$order, column_dend_reorder = hc$order,
+                             cluster_rows = hc, cluster_columns = hc,
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+popViewport()
+
+pushViewport(viewport(x = 1, width = 0.5, just = "right"))
+diag(Omega_sim) <- colSums(abs(Omega_sim))
+Sigma <- as.matrix(chol2inv(chol(Omega_sim)))
+ComplexHeatmap::draw(Heatmap(Sigma, top_annotation = column_ha, name = "CovData", column_title = "Simulated Covariance structure (From Omega sim)",
+                             clustering_method_columns = "complete", clustering_method_rows = "complete",
+                             right_annotation = row_ha, 
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+popViewport()
+```
+
+```{r, fig.height=5, fig.width = 15, echo = FALSE}
+grid.newpage()
+pushViewport(viewport(x = 0, width = 0.33, just = "left"))
+
+hc = hclust(dist(dat), method = "complete")
+ComplexHeatmap::draw(Heatmap(dat, top_annotation = column_ha, name = "Data", column_title = "Simulated data",
+                             clustering_method_columns = "complete", clustering_method_rows = "complete",
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+popViewport()
+
+pushViewport(viewport(x = 0.33, width = 0.33, just = "left"))
+ComplexHeatmap::draw(Heatmap(cov(dat), top_annotation = column_ha, name = "CovData", column_title = "Simulated data - Covariance",
+                             clustering_method_columns = "complete", clustering_method_rows = "complete",
+                             right_annotation = row_ha, 
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+popViewport()
+
+pushViewport(viewport(x = 1, width = 0.33, just = "right"))
+Omega_dat = solve(cov(dat)) - diag(solve(cov(dat)))
+hc = hclust(dist(Omega_dat), method = "complete") 
+
+ComplexHeatmap::draw(Heatmap(Omega_dat, top_annotation = column_ha,  right_annotation = row_ha, name = "InvCov Data", column_title = "Simulated data - inverse covariance",
+                             row_dend_reorder = hc$order, column_dend_reorder = hc$order,
+                              col = colorRamp2(c(min(Omega_dat),  0, max(Omega_dat)), c("blue", "white", "red")),
+                             cluster_rows = hc, cluster_columns = hc,
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+popViewport()
+```
+
+# GLASSO/GREMLIN
+
+## Premier passage du glasso 
+
+```{r}
+CVgl1 = CVglasso(X = dat, S = cov(dat), nlam = 50, lam.min.ratio = 0.01, diagonal = TRUE, maxIt = 100, path = TRUE,  crit.cv = "BIC", trace = "none")
+plot(CVgl1)
+```
+
+```{r}
+lambda = CVgl1$Tuning[2]
+lambda
+```
+
+```{r}
+gl1 = glassoFast(S = cov(dat), rho = matrix(CVgl1$Tuning[2], ncol = ncol(cov(dat)), nrow = nrow(cov(dat))))
+```
+
+```{r, fig.height=5, fig.width = 12, echo = FALSE}
+grid.newpage()
+pushViewport(viewport(x = 0, width = 0.5, just = "left"))
+
+ComplexHeatmap::draw(Heatmap(gl1$wi, top_annotation = column_ha, name = "Cov estimation", column_title = "Inverse covariance matrix found by glasso",
+                             col = colorRamp2(c(min(gl1$wi), 0, max(gl1$wi)), c("blue", "white", "red")),
+                             right_annotation = row_ha,
+                             clustering_distance_rows = "manhattan", clustering_method_rows = "ward.D",
+                             clustering_distance_columns = "manhattan", clustering_method_columns = "ward.D",
+                             heatmap_legend_param = list(direction = "horizontal")), newpage = FALSE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+popViewport()
+
+pushViewport(viewport(x = 1, width = 0.5, just = "right"))
+ComplexHeatmap::draw(Heatmap(gl1$w, top_annotation = column_ha, name = "Cov estimation", column_title = "Covariance matrix found by glasso",
+                             col = colorRamp2(c(min(gl1$w), 0, max(gl1$w)), c("blue", "white", "red")),
+                             right_annotation = row_ha,
+                             clustering_distance_rows = "manhattan", clustering_method_rows = "ward.D",
+                             clustering_distance_columns = "manhattan", clustering_method_columns = "ward.D",
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+popViewport()
+```
+
+## Passage de GREMLIN 
+
+```{r}
+Net = defineNetwork(gl1$w, typeInter = "diradj", rowFG = "Features", colFG = "Features")
+```
+
+```{r}
+gr1 = multipartiteBM(list_Net = list(Net), namesFG = "Features",
+                     v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 3, initBM = FALSE)
+```
+
+```{r}
+clustr = gr1$fittedModel[[1]]$paramEstim$Z[[1]]
+NID(clustr, classification)
+```
+
+```{r}
+distrib_groups = gr1$fittedModel[[1]]$paramEstim$list_theta$FeaturesFeatures
+round(distrib_groups$mean, 2)
+round(distrib_groups$var, 2)
+```
+
+```{r}
+set.seed(1992)
+link1 = abs(distrib_groups$mean)/max(abs(distrib_groups$mean))
+```
+
+```{r}
+set.seed(1992)
+link = link1[clustr, clustr] # doit servir pour la penalite. Tous les membres du meme groupe doivent avoir les memes proba de connexions/penalites
+```
+
+```{r}
+ComplexHeatmap::draw(Heatmap(link, top_annotation = column_ha, name = "Link", column_title = "Link between groups/individuals",
+                             # col = colorRamp2(c(0, 0.5, 1), c("white", "yellow",  "red")), 
+                             right_annotation = row_ha,
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = TRUE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+```
+
+## Deuxieme passage du glasso 
+
+```{r}
+Rho = 1-link
+gl2 = glassoFast(S = cov(dat), rho = lambda*Rho, start = "warm", wi.init = gl1$wi, w.init = gl1$w)
+```
+
+```{r, fig.height=5, fig.width = 12, echo = FALSE}
+grid.newpage()
+pushViewport(viewport(x = 0, width = 0.5, just = "left"))
+
+ComplexHeatmap::draw(Heatmap(gl2$wi, top_annotation = column_ha, name = "Cov estimation", column_title = "Inverse covariance matrix found by glasso",
+                             col = colorRamp2(c(min(gl2$wi), 0, max(gl2$wi)), c("blue", "white", "red")),
+                             right_annotation = row_ha,
+                             clustering_distance_rows = "manhattan", clustering_method_rows = "ward.D",
+                             clustering_distance_columns = "manhattan", clustering_method_columns = "ward.D",
+                             heatmap_legend_param = list(direction = "horizontal")), newpage = FALSE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+popViewport()
+
+pushViewport(viewport(x = 1, width = 0.5, just = "right"))
+ComplexHeatmap::draw(Heatmap(gl2$w, top_annotation = column_ha, name = "Cov estimation", column_title = "Covariance matrix found by glasso",
+                             col = colorRamp2(c(min(gl2$w), 0, max(gl2$w)), c("blue", "white", "red")),
+                             right_annotation = row_ha,
+                             clustering_distance_rows = "manhattan", clustering_method_rows = "ward.D",
+                             clustering_distance_columns = "manhattan", clustering_method_columns = "ward.D",
+                             heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom", merge_legend = TRUE)
+popViewport()
+```
+
+```{r}
+sum(abs(gl1$wi - gl2$wi)) # ok, quand meme des differences.
+sum(abs(gl1$wi - Omega_sim))
+sum(abs(gl2$wi - Omega_sim)) # bof
+```
+
+
+# Essai boucle (lambda fixé)
+
+```{r}
+n_iter = 25
+```
+
+```{r}
+list_res_glasso = list()
+list_res_gremlin = list()
+list_clusters = list()
+list_NID = list()
+list_diff_sim = list()
+list_diff_iter_prec = list()
+list_link = list()
+
+gl0 = gl1 = gr0 = NULL
+```
+
+## Initialisation Cross validation
+
+```{r}
+CVgl0 = CVglasso(X = dat, S = cov(dat), nlam = 100, lam.min.ratio = 0.1, diagonal = TRUE, maxIt = 100, path = TRUE,  crit.cv = "BIC", trace = "none")
+```
+
+```{r}
+plot(CVgl0)
+CVgl0$Tuning[2]
+```
+
+## Itérations (lambda fixé par cross-valdiation)
+
+```{r}
+lambda = CVgl0$Tuning[2]
+```
+
+
+```{r}
+gl0 = glassoFast(S = cov(dat), rho = matrix(lambda, ncol = ncol(cov(dat)), nrow = nrow(cov(dat))))
+list_res_glasso[[length(list_res_glasso)+1]] = gl0
+list_diff_sim[[length(list_diff_sim)+1]] = sum(abs(list_res_glasso[[length(list_res_glasso)]]$wi - Omega_sim))
+
+Net = defineNetwork(gl0$w, typeInter = "diradj", rowFG = "Features", colFG = "Features")
+gr0 = multipartiteBM(list_Net = list(Net), namesFG = "Features",
+                     v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 11, verbose = FALSE, initBM = FALSE)
+
+list_res_gremlin[[length(list_res_gremlin)+1]] = gr0
+
+clustr = gr0$fittedModel[[1]]$paramEstim$Z[[1]]
+
+list_clusters[[length(list_clusters)+1]] = length(unique(clustr))
+list_NID[[length(list_NID)+1]] = NID(clustr, classification)
+
+distrib_groups = gr0$fittedModel[[1]]$paramEstim$list_theta$FeaturesFeatures
+set.seed(1992)
+link1 = abs(distrib_groups$mean)/max(abs(distrib_groups$mean))
+link = link1[clustr, clustr]
+list_link[[length(list_link)+1]] = 1-link
+
+gl1 = glassoFast(S = cov(dat), rho = (1-link)*lambda, start = "warm", wi.init = gl0$wi, w.init = gl0$w)
+list_res_glasso[[length(list_res_glasso)+1]] = gl1
+list_diff_sim[[length(list_diff_sim)+1]] = sum(abs(list_res_glasso[[length(list_res_glasso)]]$wi - Omega_sim))
+list_diff_iter_prec[[length(list_diff_iter_prec)+1]] = sum(abs(list_res_glasso[[length(list_res_glasso)]]$wi - list_res_glasso[[length(list_res_glasso) - 1 ]]$wi))
+```
+
+```{r}
+i = 1
+# while(list_diff_iter_prec[[length(list_diff_iter_prec)]]>10^-6 && i<n_iter){
+  while(i<n_iter){ # Force a faire plusieurs iterations meme si convergence avant.
+  cat("** Iter ", i, " - ")
+  Net = defineNetwork(list_res_glasso[[length(list_res_glasso)]]$w , typeInter = "diradj", rowFG = "Features", colFG = "Features")
+  gr = multipartiteBM(list_Net = list(Net), namesFG = "Features",
+                      v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 10, verbose = FALSE, initBM = FALSE) # initBM ne change rien.
+  list_res_gremlin[[length(list_res_gremlin)+1]] = gr
+  
+  clustr = gr$fittedModel[[1]]$paramEstim$Z[[1]]
+  
+  list_clusters[[length(list_clusters)+1]] = length(unique(clustr))
+  cat(list_clusters[[length(list_clusters)]], " - ")
+  
+  list_NID[[length(list_NID)+1]] = NID(clustr, classification)
+  
+  cat(round(list_NID[[length(list_NID)]],2)) 
+  
+  distrib_groups = gr$fittedModel[[1]]$paramEstim$list_theta$FeaturesFeatures
+  set.seed(1992)
+  
+  link1 = abs(distrib_groups$mean)/max(abs(distrib_groups$mean))
+  link = link1[clustr, clustr]
+  list_link[[length(list_link)+1]] = 1-link
+  
+  if(!any(is.na(list_res_glasso[[length(list_res_glasso)]]$wi))){
+    gl = glassoFast(S = cov(dat), rho = (1-link)*lambda, start = "warm", wi.init = list_res_glasso[[length(list_res_glasso)]]$wi, w.init = list_res_glasso[[length(list_res_glasso)]]$w)
+  }else{
+    gl = glassoFast(S = cov(dat), rho = (1-link)*lambda, start = "cold")
+  }
+  
+  list_res_glasso[[length(list_res_glasso)+1]] = gl
+  list_diff_sim[[length(list_diff_sim)+1]] = sum(abs(list_res_glasso[[length(list_res_glasso)]]$wi - Omega_sim))
+  list_diff_iter_prec[[length(list_diff_iter_prec)+1]] = sum(abs(list_res_glasso[[length(list_res_glasso)]]$wi - list_res_glasso[[length(list_res_glasso) - 1 ]]$wi))
+  i = i+1
+  cat( " -- ")
+}
+```
+
+## Graphes et sorties
+
+```{r}
+df_res = data.frame(do.call("cbind", list("Clusters" = c(NA, unlist(list_clusters)), 
+                      "NID" = c(NA,unlist(list_NID)),
+                      "Diff_cov_sim" = unlist(list_diff_sim),
+                      "Diff_iter_prec" = c(NA, unlist(list_diff_iter_prec)))))
+df_res$iter = factor(c("CVGL0", "CVGLGR0", paste0("CVGLGR", (1:(n_iter-1)))), levels = c("CVGL0", "CVGLGR0", paste0("CVGLGR", (1:(n_iter-1)))))
+
+df_melt = melt(df_res, id.vars = c("iter"))
+# df_melt$lambda = factor(df_melt$lambda)
+
+ggplot(data = df_melt, aes(x = iter, y = value, group = variable)) +
+  geom_point() + geom_line() +
+  facet_grid(variable~., scales = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none")
+```
+
