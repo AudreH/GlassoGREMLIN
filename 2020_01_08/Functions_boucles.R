@@ -1,6 +1,6 @@
 ############# FONCTION BOUCLE GREMLIN #############################
 
-loopGLGR = function(lambda_seq, dat, Omega_sim, n_iter){
+loopGLGR = function(lambda_seq, dat, Omega_sim, n_iter, classification){
   listLambda = list()
   
   for(lam in lambda_seq){
@@ -46,8 +46,9 @@ loopGLGR = function(lambda_seq, dat, Omega_sim, n_iter){
     
     ##### WHILE #####
     i = 1
-    # while(list_diff_iter_prec[[length(list_diff_iter_prec)]]>10^-6 && i<n_iter){
-    while(i<n_iter){ # Force a faire plusieurs iterations meme si convergence avant.
+    while(list_diff_iter_prec[[length(list_diff_iter_prec)]]>=10^-3 && i<n_iter){
+    # while(list_diff_iter_prec[[length(list_diff_iter_prec)]]>=10^-6 && i<n_iter){ 
+    # while(i<n_iter){ # Force a faire plusieurs iterations meme si convergence avant.
       cat("** Iter ", i, " - ")
       # gr = NULL
       Net = defineNetwork(list_res_glasso[[length(list_res_glasso)]]$w , typeInter = "adj", rowFG = "Features", colFG = "Features")
@@ -182,7 +183,7 @@ BM_gaussian_step = function(
 
 ############# FONCTION BOUCLE BlockMODEL #############################
 
-loopGLBM = function(lambda_seq, dat, Omega_sim, n_iter){
+loopGLBM = function(lambda_seq, dat, Omega_sim, n_iter, classification){
   listLambda = list()
   
   for(lam in lambda_seq){
@@ -227,8 +228,9 @@ loopGLBM = function(lambda_seq, dat, Omega_sim, n_iter){
     
     ##### WHILE #####
     i = 1
-    # while(list_diff_iter_prec[[length(list_diff_iter_prec)]]>10^-6 && i<n_iter){
-    while(i<n_iter){ # Force a faire plusieurs iterations meme si convergence avant.
+    while(list_diff_iter_prec[[length(list_diff_iter_prec)]]>10^-3 && i<n_iter){
+    # while(list_diff_iter_prec[[length(list_diff_iter_prec)]]>=10^-6 && i<n_iter){ 
+    # while(i<n_iter){ # Force a faire plusieurs iterations meme si convergence avant.
       cat("** Iter ", i, " - ")
       
       bm = BM_gaussian_step("SBM", adj = list_res_glasso[[length(list_res_glasso)]]$w, verbosity = 0, exploration_factor = 1.5, explore_min = 2, explore_max = 5, ncores = 4)
