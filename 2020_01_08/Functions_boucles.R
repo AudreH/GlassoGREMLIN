@@ -85,7 +85,7 @@ loopGLGR = function(lambda_seq, dat, Omega_sim, n_iter, classification){
         clustr = sample(c(1,2,3), size = ncol(list_res_glasso[[length(list_res_glasso)]]$wi), replace = TRUE)
         
         list_clusters[[length(list_clusters)+1]] = NA
-        cat(list_clusters[[length(list_clusters)]], " - DID NOT CONVERGE")
+        cat("DID NOT CONVERGE - ")
         
         list_NID[[length(list_NID)+1]] = NA
         
