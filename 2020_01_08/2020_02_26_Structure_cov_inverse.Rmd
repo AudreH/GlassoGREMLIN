@@ -36,6 +36,7 @@ library(ComplexHeatmap)
 library(circlize)
 
 library(igraph)
+library(kableExtra)
 ```
 
 ```{r}
@@ -136,7 +137,7 @@ diag(Means.) = c(-0.1, 0.1, 0.5)
 ```{r}
 Lambda. = matrix(0.001, nb_groupes, nb_groupes)
 # diag(Lambda.) = c(10,20,30)
-diag(Lambda.) = c(0.05, 0.05, 0.03)
+diag(Lambda.) = c(0.05, 0.01, 0.1)
 Lambda.
 ```
 
@@ -197,23 +198,17 @@ grid.newpage()
 pushViewport(viewport(x = 0, width = 0.5, just = "left"))
 
 Omega_sim2 = Omega_sim ; diag(Omega_sim2) = 0
-hc = hclust(dist(Omega_sim), method = "complete")
 ComplexHeatmap::draw(Heatmap(Omega_sim, top_annotation = column_ha, name = "InvCov", column_title = "Simulated Inverse Covariance structure",
                               col = colorRamp2(c(-max(Omega_sim2),  0, max(Omega_sim2)), c("blue", "white", "red")),
                              right_annotation = row_ha, 
-                             row_dend_reorder = hc$order, column_dend_reorder = hc$order,
-                             cluster_rows = hc, cluster_columns = hc,
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 popViewport()
 
 pushViewport(viewport(x = 1, width = 0.5, just = "right"))
 Sigma2 = Sigma_sim ; diag(Sigma2) = 0
-hc = hclust(dist(Sigma2), method = "complete")
 ComplexHeatmap::draw(Heatmap(Sigma_sim,
-                             top_annotation = column_ha, name = "CovData", column_title = "Simulated Covariance structure",
-                             row_dend_reorder = hc$order, column_dend_reorder = hc$order,
-                             cluster_rows = hc, cluster_columns = hc,
+                             top_annotation = column_ha, name = "Cov", column_title = "Simulated Covariance structure",
                              col = colorRamp2(c(-max(Sigma2),  0, max(Sigma2)), c("blue", "white", "red")),
                              right_annotation = row_ha, 
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
@@ -228,7 +223,7 @@ pushViewport(viewport(x = 0, width = 0.33, just = "left"))
 
 hc = hclust(dist(dat), method = "complete")
 ComplexHeatmap::draw(Heatmap(dat, top_annotation = column_ha, name = "Data", column_title = "Simulated data",
-                             clustering_method_columns = "complete", cluster_rows = FALSE,
+                             cluster_rows = FALSE,
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 popViewport()
@@ -236,8 +231,6 @@ popViewport()
 pushViewport(viewport(x = 0.33, width = 0.33, just = "left"))
 Sigma_dat = Sigma_dat2 = cov(dat) ; diag(Sigma_dat2) = 0
 ComplexHeatmap::draw(Heatmap(Sigma_dat, top_annotation = column_ha, name = "CovData", column_title = "Simulated data - Covariance",
-                              # col = colorRamp2(c(-1,  0, 1), c("blue", "white", "red")),
-                             clustering_method_columns = "complete", clustering_method_rows = "complete",
                              right_annotation = row_ha, 
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
@@ -246,7 +239,6 @@ popViewport()
 pushViewport(viewport(x = 1, width = 0.33, just = "right"))
 
 ComplexHeatmap::draw(Heatmap(solve(Sigma_dat), top_annotation = column_ha,  right_annotation = row_ha, name = "InvCov Data", column_title = "Simulated data - inverse covariance",
-                              # col = colorRamp2(c(-1,  0, 1), c("blue", "white", "red")),
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 popViewport()
@@ -272,21 +264,16 @@ grid.newpage()
 pushViewport(viewport(x = 0, width = 0.5, just = "left"))
 
 wi = wi2 = CVgl1$GLASSO$wi ; diag(wi2) = 0
-hc = hclust(dist(wi), method = "complete")
 ComplexHeatmap::draw(Heatmap(wi, top_annotation = column_ha, name = "InvCov", column_title = "Inverse Covariance CVGL0",
                              col = colorRamp2(c(min(wi2), 0, max(wi2)), c("blue", "white", "red")),
                              right_annotation = row_ha, 
-                             row_dend_reorder = hc$order, column_dend_reorder = hc$order,
-                             cluster_rows = hc, cluster_columns = hc,
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 popViewport()
 
 pushViewport(viewport(x = 1, width = 0.5, just = "right"))
 w = w2 = CVgl1$GLASSO$w ; diag(w2) = 0 
-hc = hclust(dist(w), method = "complete")
 ComplexHeatmap::draw(Heatmap(w, top_annotation = column_ha, name = "CovData", column_title = "Covariance CVGL0",
-                             clustering_method_columns = "complete", clustering_method_rows = "complete",
                               col = colorRamp2(c(min(w2), 0, max(w2)), c("blue", "white", "red")),
                              right_annotation = row_ha, 
                              heatmap_legend_param = list(direction = "horizontal"))  , newpage = FALSE, heatmap_legend_side = "bottom",
@@ -308,7 +295,6 @@ grid.newpage()
 pushViewport(viewport(x = 0, width = 0.5, just = "left"))
 
 wi = wi2 = gl1$wi ; diag(wi2) = 0
-hc = hclust(dist(wi), method = "complete")
 ComplexHeatmap::draw(Heatmap(wi, top_annotation = column_ha, name = "Cov estimation", column_title = "Inverse covariance matrix found by glasso",
                              col = colorRamp2(c(min(wi2), 0, max(wi2)), c("blue", "white", "red")),
                              right_annotation = row_ha,
@@ -318,7 +304,6 @@ popViewport()
 
 pushViewport(viewport(x = 1, width = 0.5, just = "right"))
 w = w2 = gl1$w ; diag(w2) = 0
-hc = hclust(dist(w2), method = "complete")
 ComplexHeatmap::draw(Heatmap(w, top_annotation = column_ha, name = "Cov estimation", column_title = "Covariance matrix found by glasso",
                              col = colorRamp2(c(min(w2), 0, max(w2)), c("blue", "white", "red")),
                              right_annotation = row_ha,
@@ -336,6 +321,8 @@ Net = defineNetwork(gl1$w, typeInter = "adj", rowFG = "Features", colFG = "Featu
 ```{r}
 gr1 = multipartiteBM(list_Net = list(Net), namesFG = "Features",
                      v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 3, initBM = FALSE)
+# gr1 = multipartiteBMFixedModel(list_Net = list(Net), namesFG = c("Features"), v_distrib = c("gaussian"), v_K = 3)
+# FixedModel : fonctionne a 2 mais pas a trois, probleme de convergence je pense. 
 ```
 
 
@@ -367,11 +354,17 @@ column_ha2 = HeatmapAnnotation(df =data.frame(Clusters = as.factor(classificatio
                                          "GREMLIN" = c("1" = "blue", "2" = "azure3", "3" = "darkorchid3", "4" = "darksalmon", "5" = "darkolivegreen3")),
                               annotation_legend_param = list(nrow = 1))
 
+row_ha2 = HeatmapAnnotation(df =data.frame(Clusters = as.factor(classification), "GREMLIN" = as.factor(clustr)),
+                              col = list("Clusters" = c("1" = "blue", "2" = "azure3", "3" = "darkorchid3", "4" = "darksalmon", "5" = "darkolivegreen3"),
+                                         "GREMLIN" = c("1" = "blue", "2" = "azure3", "3" = "darkorchid3", "4" = "darksalmon", "5" = "darkolivegreen3")), 
+                           which = "row",
+                           show_annotation_name = FALSE, show_legend = FALSE,  annotation_legend_param = list(nrow = 1))
+
 w = w2 = gl1$w ; diag(w2) = 0
 ComplexHeatmap::draw(Heatmap(w, top_annotation = column_ha2, name = "Cov estimation", column_title = "gl1$w ordered by group from GREMLIN",
                              col = colorRamp2(c(min(wi2), 0, max(wi2)), c("blue", "white", "red")),
-                             row_order = order(clustr), column_order = order(clustr),
-                             right_annotation = row_ha,
+                             row_order = order(clustr, classification), column_order = order(clustr, classification),
+                             right_annotation = row_ha2,
                              heatmap_legend_param = list(direction = "horizontal")), newpage = TRUE, heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom", merge_legend = TRUE)
 ```
@@ -404,21 +397,28 @@ popViewport()
 ```
 
 ```{r}
-sum(abs(gl1$wi - gl2$wi))
-sum(abs(gl1$wi - Omega_sim))
-sum(abs(gl2$wi - Omega_sim)) 
+vect = c(sum(abs(gl1$wi - gl2$wi)),sum(abs(gl1$wi - Omega_sim)),sum(abs(gl2$wi - Omega_sim)))
+names(vect) = c("Diff iter 1 and 2", "Diff gl1 and Omega_sim", "Diff gl2 and Omega_sim")
+gl12wi = gl1$wi ; diag(gl12wi) = 0 
+gl22wi = gl2$wi ; diag(gl22wi) = 0 
+Omega_sim2 = Omega_sim ; diag(Omega_sim2) = 0
+vect2 = c(sum(abs(gl12wi - gl22wi)),sum(abs(gl12wi - Omega_sim2)),sum(abs(gl22wi - Omega_sim2)))
+df = rbind(vect, vect2)
+rownames(df) = c("Diag included", "Diag excluded")
+kableExtra::kable(t(df)) %>% kable_styling()
 ```
 
 
 # Essai boucle (lambda fixé)
 
 ```{r}
-n_iter = 10
-lambda_seq = c(10^-5, 10^-4, 0.0005, 10^-3)
+n_iter = 25
+# lambda_seq = c(10^-5, 10^-4, 10^-3, 10^-2, 10^-1)
+lambda_seq = seq(10^-5, 10^-2, length.out = 10)
 ```
 
 ```{r}
-listLambda = loopGLGR(lambda_seq, dat, Omega_sim, n_iter)
+listLambda = loopGLGR(lambda_seq, dat, Omega_sim, n_iter, classification)
 ```
 ## Graphes et sorties
 
@@ -426,8 +426,10 @@ listLambda = loopGLGR(lambda_seq, dat, Omega_sim, n_iter)
 df_test = do.call("rbind",lapply(1:length(listLambda), FUN = function(i){
   # i = 1
   liste = listLambda[[i]]
-  df = data.frame(t(do.call("cbind", list("Clusters" = c(NA, unlist(liste$clusters)), "NID" = c(NA, unlist(liste$NID)),
-                                 "diff_sim" = c(unlist(liste$diff_sim)), "diff_prev_iter" = c(NA, unlist(liste$diff_prev_iter))))))
+  df = data.frame(t(do.call("cbind", list("Clusters" = c(NA, unlist(liste$clusters), rep(NA, n_iter-length(unlist(liste$clusters)))),
+                                          "NID" = c(NA, unlist(liste$NID), rep(NA, n_iter-length(unlist(liste$NID)))),
+                                 "diff_sim" = c(unlist(liste$diff_sim), rep(NA, 1 + n_iter-length(unlist(liste$diff_sim)))),
+                                 "diff_prev_iter" = c(NA, unlist(liste$diff_prev_iter), rep(NA, n_iter-length(liste$diff_prev_iter)))))))
   colnames(df) = c("GL0", "GRGL0", paste0("GRGL", 1:(ncol(df)-2)))
   df$response = rownames(df)
   df$lambda = lambda_seq[i] 
@@ -440,11 +442,11 @@ df_melt = melt(df_test, id.vars = c("lambda", "response"))
 df_melt$lambda = factor(df_melt$lambda)
 ```
 
-```{r, fig.width = 15}
-ggplot(data = df_melt, aes(x = variable, y = value, color = lambda, group = lambda)) +
-  geom_point() + geom_line() +
+```{r, fig.width = 15, fig.height = 7.5}
+ggplot(data = df_melt[df_melt$variable%in%levels(df_melt$variable)[1:5],], aes(x = variable, y = value, color = lambda, group = lambda)) +
+  geom_point(size = 3) + geom_line(size = 1) +
   facet_grid(response~lambda, scales = "free") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none")
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none", text = element_text(size = 20))
 ```
 
 # Essai boucle BM (lambda fixe)
@@ -452,21 +454,24 @@ ggplot(data = df_melt, aes(x = variable, y = value, color = lambda, group = lamb
 
 ```{r}
 n_iter = 10
-lambda_seq = c(10^-5, 10^-4, 0.0005, 10^-3)
+lambda_seq = seq(10^-5, 10^-2, length.out = 10)
 ```
 
-```{r}
-listLambda = loopGLBM(lambda_seq, dat, Omega_sim, n_iter)
+```{r, echo = TRUE, results = "hide"}
+listLambda = loopGLBM(lambda_seq, dat, Omega_sim, n_iter, classification)
 ```
+
 ## Graphes et sorties
 
 ```{r}
 df_test = do.call("rbind",lapply(1:length(listLambda), FUN = function(i){
   # i = 1
   liste = listLambda[[i]]
-  df = data.frame(t(do.call("cbind", list("Clusters" = c(NA, unlist(liste$clusters)), "NID" = c(NA, unlist(liste$NID)),
-                                 "diff_sim" = c(unlist(liste$diff_sim)), "diff_prev_iter" = c(NA, unlist(liste$diff_prev_iter))))))
-  colnames(df) = c("GL0", "BMGL0", paste0("BMGL", 1:(ncol(df)-2)))
+  df = data.frame(t(do.call("cbind", list("Clusters" = c(NA, unlist(liste$clusters), rep(NA, n_iter-length(unlist(liste$clusters)))),
+                                          "NID" = c(NA, unlist(liste$NID), rep(NA, n_iter-length(unlist(liste$NID)))),
+                                 "diff_sim" = c(unlist(liste$diff_sim), rep(NA, 1 + n_iter-length(unlist(liste$diff_sim)))),
+                                 "diff_prev_iter" = c(NA, unlist(liste$diff_prev_iter), rep(NA, n_iter-length(liste$diff_prev_iter)))))))
+  colnames(df) = c("GL0", "GRGL0", paste0("GRGL", 1:(ncol(df)-2)))
   df$response = rownames(df)
   df$lambda = lambda_seq[i] 
   df
@@ -478,10 +483,10 @@ df_melt = melt(df_test, id.vars = c("lambda", "response"))
 df_melt$lambda = factor(df_melt$lambda)
 ```
 
-```{r, fig.width = 15}
-ggplot(data = df_melt, aes(x = variable, y = value, color = lambda, group = lambda)) +
-  geom_point() + geom_line() +
+```{r, fig.width = 15, fig.height = 7.5}
+ggplot(data = df_melt[df_melt$variable%in%levels(df_melt$variable)[1:5],], aes(x = variable, y = value, color = lambda, group = lambda)) +
+  geom_point(size = 3) + geom_line(size = 1) +
   facet_grid(response~lambda, scales = "free") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none")
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none", text = element_text(size = 20))
 ```
 
