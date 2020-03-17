@@ -172,8 +172,8 @@ row_ha = HeatmapAnnotation(Clusters = as.factor(classification),
 ## Visualisation données simulées
 
 ```{r}
-Omega_sim = as_adjacency_matrix(Sim_SBM, attr = "weight", sparse = FALSE)
-Sigma_sim = Sigma_From_Omega(Omega_sim)
+  Omega_sim = as_adjacency_matrix(Sim_SBM, attr = "weight", sparse = FALSE)
+  Sigma_sim = Sigma_From_Omega(Omega_sim)
 ```
 
 ```{r}
