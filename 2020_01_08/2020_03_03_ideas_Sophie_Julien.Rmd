@@ -1,0 +1,171 @@
+---
+title: "2020_02_26_Structure_cov_inverse"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_print: paged
+date: '`r format(Sys.time(), "%d %B, %Y at %H:%M:%S")`'
+---
+
+```{r}
+rm(list = ls())
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, fig.ext = "png", fig.path = "2020_02_26_Structure_cov_inverse/", fig.width = 10, fig.height = 6, fig.align = "center")
+```
+
+# Packages
+
+```{r}
+library(Matrix)
+library(GREMLIN)
+library(aricode)
+library(glassoFast)
+library(blockmodels)
+
+library(ggplot2)
+library(reshape2)
+
+library(MASS)
+
+library(RColorBrewer)
+library(ComplexHeatmap)
+library(circlize)
+
+library(igraph)
+library(kableExtra)
+```
+
+```{r}
+source("Functions.R")
+source("Functions_boucles.R")
+```
+
+```{r}
+source("Function_graph.R")
+```
+
+# Fonctions simulations
+
+## Reprise code @Julien (janine)
+
+https://github.com/jchiquet/janine/blob/master/R/utils.R
+
+```{r}
+rSBM <- function(p, pi, alpha) {
+  Q <- length(alpha)
+  Z <- t(rmultinom(p, 1, prob = alpha))
+  A <- matrix(0, p, p)
+  subset <- upper.tri(A)
+  PI <- (Z %*% pi %*% t(Z))[subset]
+  x <- rbinom(n=p*(p-1)/2, size = 1, prob = PI)
+  A[subset] <- x
+  A <- A + t(A)
+  mySBM <- graph_from_adjacency_matrix(A, mode = "undirected")
+  vertex_attr(mySBM, "membership") <- Z %*% 1:Q
+  mySBM
+}
+
+#' rSBM_Laplace
+#'
+#' Generate a symmetric matrix under the stochastic block model
+#' with a Laplace distribution as the emission law of the edges.
+#'
+#' @param p number of nodes
+#' @param Lambda a QxQ matrix of connectivity parameters
+#' @param alpha a size-Q vector of mixture
+#' @return an igraph object: undirected weigthed graph with a attribute "membership" for the vertices
+#' @import Matrix igraph
+#' @importFrom rmutil rlaplace
+Omega_From_SBM <- function(G) {
+  igraph::laplacian_matrix(G, normalized = TRUE)
+}
+```
+
+Fonction de simulation des données :
+
+```{r}
+Sigma_From_Omega = function(Omega){
+  eig <- eigen(Omega)
+  D <- eig$values
+  P <- eig$vectors
+  Dminus <- rep(0, ncol(Omega))
+  Dminus[D > 1e-12] <- 1/D[D > 1e-12]
+  Dminus <- diag(Dminus)
+  Sigma <- P %*% Dminus %*% t(P)  
+  Sigma
+}
+```
+
+```{r}
+rmvnorm_SBM <- function(n, sbm) {
+  Omega <- as_adj(sbm, attr = "weight")
+  Sigma = Sigma_From_Omega(Omega)
+  res <- mvtnorm::rmvnorm(n, sigma = Sigma)
+  res
+}
+```
+
+# Simulation des données
+
+## Définition paramètres et simulations
+
+```{r}
+n_ind = 100
+n_feat = 30
+nb_groupes = 3
+```
+
+```{r}
+alpha. = rep(1/nb_groupes, nb_groupes)
+round(alpha., 2)
+```
+Matrice de connectivité
+```{r}
+pi <- matrix(c(0.5, 0.05, 0.05, 0.05, 0.5, 0.05, 0.05, 0.05, 0.5), 3, 3)
+```
+
+Réseau
+```{r}
+G <- rSBM(100, pi, c(1/3, 1/3, 1/3))
+```
+
+```{r}
+Omega <- Omega_From_SBM(G)
+```
+
+```{r}
+cl <- V(G)$membership
+image(as_adj(G)[order(cl), order(cl)])
+image(Matrix(Omega)[order(cl), order(cl)])
+```
+
+```{r}
+Sigma <- Sigma_From_Omega(Omega)
+Sigma_tilde <- Sigma; diag(Sigma_tilde) <- NA
+image(Matrix(Sigma_tilde[order(cl), order(cl)]))
+```
+
+```{r}
+dat <- mvtnorm::rmvnorm(500, sigma = Sigma)
+Sigma_hat <- cov(dat)
+glasso_out <- glassoFast::glassoFast(cov(dat), 0.05)
+Sigma_gl_hat <- glasso_out$w
+Omega_gl_hat <- glasso_out$wi
+model <- blockmodels::BM_gaussian("SBM_sym", adj = Omega_gl_hat)
+model$estimate()
+cl_hat <- apply(model$memberships[[3]]$Z, 1, which.max)
+
+Sigma_hat_tilde <- Sigma_gl_hat; diag(Sigma_hat_tilde) <- NA
+image(Matrix(Sigma_hat_tilde[order(cl_hat), order(cl_hat)]))
+```
+
+
+```{r}
+Omega_hat_tilde <- Omega_gl_hat; diag(Omega_hat_tilde) <- NA
+image(Matrix(Omega_hat_tilde[order(cl_hat), order(cl_hat)]))
+```
+
