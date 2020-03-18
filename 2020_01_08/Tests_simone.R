@@ -1,3 +1,4 @@
+rm(list = ls())
 setwd("/home/hulot/Documents/packages_R/GlassoGREMLIN/2020_01_08/")
 
 ## ---- PACKAGES : -----
@@ -30,6 +31,31 @@ library(parallel)
 source("Code_Sophie/functions_plot.R")
 source("Function_graph.R")
 source("Functions_boucles.R")
+
+# ---- Function res graph plot : ----
+
+res_sim  = function(res, n_iter){
+  df_test = do.call("rbind",lapply(1:length(res), FUN = function(i){
+    # i = 1 
+    liste = res[[i]]
+    df = data.frame(t(do.call("cbind", list("Clusters" = c(NA, unlist(liste$clusters), rep(NA, n_iter-length(unlist(liste$clusters)))),
+                                            "NID" = c(NA, unlist(liste$NID), rep(NA, n_iter-length(unlist(liste$NID)))),
+                                            "diff_sim" = c(unlist(liste$diff_sim), rep(NA, 1 + n_iter-length(unlist(liste$diff_sim)))),
+                                            "diff_prev_iter" = c(NA, unlist(liste$diff_prev_iter), rep(NA, n_iter-length(liste$diff_prev_iter)))))))
+    colnames(df) = c("GL0", "GRGL0", paste0("GRGL", 1:(ncol(df)-2)))
+    df$response = rownames(df)
+    df$lambda = lambda_seq[i] 
+    df
+  }))
+  
+  df_melt = melt(df_test, id.vars = c("lambda", "response"))
+  df_melt$lambda = factor(df_melt$lambda)
+  df_melt = df_melt[!is.na(df_melt$value),]
+  df_melt$lambda = factor(round(as.numeric(as.character(df_melt$lambda)),2))
+  
+  df_melt
+}
+
 
 # ---- Fonctions simone: ----
 
@@ -159,11 +185,6 @@ diag(pi) = c(1, 1, 1)
 alpha = rep(1/nb_groupes, nb_groupes)
 
 set.seed(1992)
-# net_1 = r_networkb(p = p,
-#                  pi = pi,
-#                  alpha    = alpha,
-#                  directed = FALSE, 
-#                  name     = "net_1", signed = FALSE)
 net_1 = rNetwork(p = p,
                    pi = pi,
                    alpha    = alpha,
@@ -210,7 +231,7 @@ NID(gr$fittedModel[[1]]$paramEstim$Z$Features, classification)
 
 #### Simulation des données de transcriptomique associées à Omega/net_1
 dat = rTranscriptData(1000, net_1)
-draw(Heatmap(dat$X, name = "data_sim"), merge_legend = TRUE)
+# draw(Heatmap(dat$X, name = "data_sim"), merge_legend = TRUE)
 
 draw(Heatmap(cov(dat$X) - diag(diag(cov(dat$X))), top_annotation = ha, right_annotation = ha_r, name = "Sigma_sim",
              row_order = order(classification), column_order = order(classification)), merge_legend = TRUE)
@@ -221,7 +242,7 @@ lambda_seq = seq(10^(-4), 10^(-1), length.out = 15)
 res = loopGLGR(lambda_seq = lambda_seq, dat = dat$X, n_iter = n_iter, Omega_sim = Omega, classification = classification)
 
 df_test = do.call("rbind",lapply(1:length(res), FUN = function(i){
-  # i = 1
+  # i = 1 
   liste = res[[i]]
   df = data.frame(t(do.call("cbind", list("Clusters" = c(NA, unlist(liste$clusters), rep(NA, n_iter-length(unlist(liste$clusters)))),
                                           "NID" = c(NA, unlist(liste$NID), rep(NA, n_iter-length(unlist(liste$NID)))),
@@ -245,6 +266,31 @@ ggplot(data = df_melt, aes(x = variable, y = value, color = lambda, group = lamb
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none", text = element_text(size = 20))
 
 ggsave(filename = "Test_net1.jpeg", height = 20, width = 30, units = c("cm"))
+
+# ---- Tests net_1 : données simulées avec des nombres différents d'individus : ----
+
+n_ind_pos = c(10, 50, 100, 500, 1000)
+
+dat_pos = lapply(n_ind_pos, rTranscriptData, graph = net_1)
+
+n_iter = 10
+lambda_seq = seq(10^(-4), 10^(-1), length.out = 10)
+
+res = mclapply(dat_pos, FUN = function(dat){
+  loopGLGR(lambda_seq = lambda_seq, dat = dat$X, n_iter = n_iter, Omega_sim = Omega, classification = classification)
+}, mc.cores = 4)
+# Probleme avec les convergences de GREMLIN. 
+
+tab_res = lapply(res, res_sim, n_iter = n_iter)
+
+lapply(1:length(tab_res), FUN = function(i){
+  ggplot(data = tab_res[[1]], aes(x = variable, y = value, color = lambda, group = lambda)) +
+    geom_point(size = 3) + geom_line(size = 1) +
+    facet_grid(response~lambda, scales = "free") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+    theme(legend.position="none", text = element_text(size = 20)) +
+    ggtitle(paste0("N_ind" = n_ind_pos[i]))
+})
 
 # ---- Tests possibilities : ----
 
@@ -352,11 +398,11 @@ df_test = do.call("rbind",lapply(1:length(res), FUN = function(i){
 }))
 
 df_melt = melt(df_test, id.vars = c("lambda", "response"))
-df_melt$lambda = factor(df_melt$lambda)
+df_melt$lambda = factor(round(as.numeric(as.character(df_melt$lambda)), 6))
 
-df_print = df_melt[as.numeric(as.character(df_melt$lambda))<10^(-4),]
+# df_print = df_melt[as.numeric(as.character(df_melt$lambda))<10^(-4),]
 
-ggplot(data = df_print, aes(x = variable, y = value, color = lambda, group = lambda)) +
+ggplot(data = df_melt, aes(x = variable, y = value, color = lambda, group = lambda)) +
   geom_point(size = 3) + geom_line(size = 1) +
   facet_grid(response~lambda, scales = "free") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none", text = element_text(size = 20))
