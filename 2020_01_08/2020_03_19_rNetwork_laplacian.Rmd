@@ -52,6 +52,8 @@ mySBM <- set_edge_attr(mySBM, "weight", value = rnorm(gsize(mySBM), mu , sigma))
 
 ## Construction de la matrice de précision et de variance-covariance
 
+### Premier essai: laplacien pondéré, normalisé et diagonale dominante uniforme
+
 On construit la matrice de précision à l'aide de l'opérateur Laplacien pondéré (et normalisé, pour avoir des variances autour de 1). Pour obtenir une matrice défini positive dont la structure soit fidèle au modèle graphique du SBM tiré ci-dessus, on rend cette matrice diagonale dominante en inflantant que la diagonale.
 
 ```{r laplacian precision}
@@ -78,3 +80,36 @@ hist(Theta_plot)
 hist(Sigma_plot)
 ```
 
+### Deuxième essai: laplacien pondéré et diagonale dominante uniforme
+
+On construit la matrice de précision à l'aide de l'opérateur Laplacien pondéré. Pour obtenir une matrice définie positive dont la structure soit fidèle au modèle graphique du SBM tiré ci-dessus, on rend cette matrice diagonale dominante en inflantant que la diagonale proportionnellement au degré de chaque noeud.
+
+```{r laplacian precision 2}
+Theta <- laplacian_matrix(mySBM)
+epsilon <- 1e-2
+lambda  <- 1e-4 * epsilon
+iter <- 0
+while (!all(eigen(Theta, only.values = TRUE)$values > epsilon)) {
+  iter <- iter + 1
+  Theta <- Theta + lambda * diag(degree(mySBM))
+}
+cat("Il a fallu", iter, "itérations.")
+```
+
+La matrice de covariance s'obtient par inversion directe:
+
+```{r covariance 2}
+Sigma <- solve(Theta)
+```
+
+On ôte pour la représentation graphique les diagonales (qui sont autour de 1) pour constater que la structure apr bloc est bien préservée.
+
+```{r plot 2}
+par(mfrow = c(2,2))
+Theta_plot <- as.matrix(Theta); diag(Theta_plot) <- NA
+Sigma_plot <- as.matrix(Sigma); diag(Sigma_plot) <- NA
+corrplot(Theta_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+corrplot(Sigma_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+hist(Theta_plot)
+hist(Sigma_plot)
+```
