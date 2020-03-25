@@ -17,6 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r packages, message = FALSE, warnings = FALSE}
 library(igraph)
 library(corrplot)
+library(Matrix)
 ```
 
 ## Paramètres du réseau
@@ -91,7 +92,7 @@ lambda  <- 1e-4 * epsilon
 iter <- 0
 while (!all(eigen(Theta, only.values = TRUE)$values > epsilon)) {
   iter <- iter + 1
-  Theta <- Theta + lambda * diag(degree(mySBM))
+  diag(Theta) <- diag(Theta) + lambda * degree(mySBM)
 }
 cat("Il a fallu", iter, "itérations.")
 ```
