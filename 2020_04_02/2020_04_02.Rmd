@@ -1,0 +1,147 @@
+---
+title: "2020_04_02_Tests"
+author: "AH, SD, FJ, JC"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_print: paged
+date: '`r format(Sys.time(), "%d %B, %Y at %H:%M:%S")`'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+```
+
+(Vignette Janine)
+
+# Préliminaires
+
+```{r packages, message = FALSE, warnings = FALSE}
+library(igraph)
+library(corrplot)
+
+library(kableExtra)
+
+library(Matrix)
+
+library(mvtnorm) # generation multivariee gaussienne
+
+library(ggplot2)
+library(gplots)
+
+library(rggm)     # GGM data generation
+```
+
+```{r}
+source("Functions_boucles.R")
+```
+
+# Simulation des données
+
+```{r}
+nNodes  <- 90
+blockProp <- c(1/3, 1/3, 1/3)   # group proportions
+nbBlock   <- length(blockProp) # number of blocks
+connectParam <- diag(.4, nbBlock) + 0.01 # connectivity matrix: affiliation network
+```
+
+```{r}
+set.seed(2000)
+mySBM <- rSBM(nNodes, connectParam, blockProp)
+classif = V(mySBM)$memberships
+```
+
+```{r}
+Omega <- graph2prec(mySBM, cond_var = rep(1, nNodes), neg_prop = 0.5)
+Sigma <- solve(Omega)
+```
+
+```{r}
+n <- 1000
+means <- rep(0, ncol(Sigma))
+set.seed(1992)
+X <- rmgaussian(n, means, Sigma)
+```
+
+# Essai boucle (Diag = FALSE)
+
+```{r}
+max_pen   <- max(abs(cov(as.matrix(X))[upper.tri(cov(as.matrix(X)), diag = FALSE)]))
+lambda_seq <- 10^seq(from = log10( max_pen ),
+                    to   = log10( max_pen*10^-3 ),
+                    len  = 10)
+lambda_seq = lambda_seq[-1]
+```
+
+Note : lambda[1] = NA dans glasso. (Remarque : le 2 ne donne pas grand-chose non plus)
+
+```{r}
+# lambda_seq = c(10^-6, 10^-5, 10^-4, 10^-3)
+```
+
+```{r}
+n_iter = 10
+```
+
+```{r}
+res = loopGLGR(dat = as.matrix(X), lambda_seq = lambda_seq, n_iter = n_iter, 
+               Omega_sim = Omega, classification = classif, timeout = 180, diagonal = FALSE, min_pen = 0)
+save(res, file = "res_diagonalFalse.RData")
+```
+
+```{r}
+lapply(res, FUN = function(x) x$exit_status)
+```
+
+```{r}
+df_plot = res_sim(res = res, n_iter = n_iter, lambda_seq = lambda_seq)
+```
+
+```{r, fig.height  = 8, fig.width=12}
+ggplot(data = df_plot, aes(x = variable, y = value, color = lambda, group = lambda)) +
+  geom_point(size = 3) + geom_line(size = 1) +
+  facet_grid(response~lambda, scales = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none", text = element_text(size = 20))
+```
+
+```{r}
+res.plot(res[[1]])
+```
+
+```{r, fig.widht = 12, fig.height = 5}
+res.alluv(res$`1e-06`$classif, classif = classif, title = "Lambda = 1e-06")
+```
+
+```{r}
+# Omega_algo = res[[1]]$glasso[[length(res[[1]]$glasso)]]$wi ; diag(Omega_algo) = NA
+# Classif_algo =res[[1]]$classif[[length(res[[1]]$classif)]]
+# SideColors = cbind(c("red", "blue", "green", "cyan", "orange")[Classif_algo],
+#                    c("red", "blue", "green", "cyan", "orange")[classif])
+# heatmap.2(as.matrix(Omega_algo)[order(Classif_algo), order(Classif_algo)], dendrogram = "none", Rowv = FALSE, Colv = FALSE, trace="none",
+#           col = bluered(100), symm = TRUE, na.color = "black", ColSideColors = SideColors[order(Classif_algo),1], RowSideColors = SideColors[order(Classif_algo),1])
+```
+
+```{r}
+df_res = do.call("rbind", lapply(res, FUN = function(liste) unlist(lapply(liste[names(liste)%in%c("logLik", "AIC", "BIC")], FUN = function(liste2) max(unlist(liste2))))))
+```
+
+```{r}
+knitr::kable(df_res) %>% kable_styling(full_width = FALSE) %>% add_header_above(c("Diagonal = FALSE" = (ncol(df_res)+1)))
+```
+
+```{r}
+df_res = data.frame(df_res)
+df_res$penalty = rownames(df_res)
+df_res$penalty = as.numeric(as.character(df_res$penalty))
+df_plot = melt(df_res, id.vars = "penalty")
+colnames(df_plot) = c("penalty", "variable", "value")
+```
+
+```{r}
+ggplot(data = df_plot, aes(x = penalty, y = value, color = variable, group = variable)) +
+  geom_point(size = 3) + geom_line(size = 1) + scale_x_log10() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none", text = element_text(size = 20))
+```
+
