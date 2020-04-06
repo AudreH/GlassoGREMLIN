@@ -1,0 +1,80 @@
+---
+title: "Génération de réseaux"
+author: "AH, SD, FJ, JC"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Préliminaires
+
+```{r packages, message = FALSE, warnings = FALSE}
+library(igraph)
+library(corrplot)
+```
+
+## Paramètres du réseau
+
+On défnit par exemple un réseau avec 12O noeuds et une structure de 4 blocs:
+
+```{r parameters}
+p  <- 120
+sizes <- c(50, 30, 30, 10)
+K <- length(sizes)
+PI <- diag(.4, K) + .05 # connectivity matrix
+```
+
+## Tirage d'un SBM
+
+Le package `igraph` permet de tirer un SBM binaire sous ces paramètres ^[les groupes sont fixés et les noeuds ordonnées dans les groupe correpondants].
+
+```{r SBM}
+mySBM <- igraph::sample_sbm(p, PI, sizes)
+mySBM <- set_vertex_attr(mySBM, "cluster", value = rep(1:K, sizes))
+plot(mySBM, vertex.color = V(mySBM)$cluster)
+```
+
+## Tirage des poids
+
+On prends les poids Gaussiens de même moyenne et même variance^[Il y a mieux à faire !]
+
+```{r Gaussian weights}
+## random Gaussian weights
+mu <- 2; sigma <- 1
+mySBM <- set_edge_attr(mySBM, "weight", value = rnorm(gsize(mySBM), mu , sigma))
+```
+
+## Construction de la matrice de précision et de variance-covariance
+
+On construit la matrice de précision à l'aide de l'opérateur Laplacien pondéré (et normalisé, pour avoir des variances autour de 1). Pour obtenir une matrice défini positive dont la structure soit fidèle au modèle graphique du SBM tiré ci-dessus, on rend cette matrice diagonale dominante en inflantant que la diagonale.
+
+```{r laplacian precision}
+epsilon <- 1e-1
+Theta <- laplacian_matrix(mySBM, normalized = TRUE)
+Theta <- Theta + diag(epsilon, p, p)
+```
+
+La matrice de covariance s'obtient par inversion directe:
+
+```{r covariance}
+Sigma <- solve(Theta)
+```
+
+On ôte pour la représentation graphique les diagonales (qui sont autour de 1) pour constater que la structure apr bloc est bien préservée.
+
+```{r plot}
+par(mfrow = c(2,2))
+Theta_plot <- as.matrix(Theta); diag(Theta_plot) <- NA
+Sigma_plot <- as.matrix(Sigma); diag(Sigma_plot) <- NA
+corrplot(Theta_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+corrplot(Sigma_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+hist(Theta_plot)
+hist(Sigma_plot)
+```
+

@@ -1,0 +1,308 @@
+---
+title: "2020_03_20_Tests"
+author: "AH, SD, FJ, JC"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_print: paged
+date: '`r format(Sys.time(), "%d %B, %Y at %H:%M:%S")`'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+```
+
+# Préliminaires
+
+```{r packages, message = FALSE, warnings = FALSE}
+library(igraph)
+library(corrplot)
+
+library(Matrix)
+
+library(mvtnorm) # generation multivariee gaussienne
+
+library(ggplot2)
+library(gplots)
+```
+
+```{r}
+source("Functions_boucles.R")
+```
+
+
+# Simulation réseau
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+## Paramètres du réseau
+
+```{r parameters}
+p  <- 80
+sizes <- ceiling(c(0.4, 0.25, 0.25, 0.1)*p)
+K <- length(sizes)
+PI <- diag(.4, K) + .05 # connectivity matrix
+```
+
+## Tirage d'un SBM
+
+```{r SBM}
+mySBM <- igraph::sample_sbm(p, PI, sizes)
+mySBM <- set_vertex_attr(mySBM, "cluster", value = rep(1:K, sizes))
+plot(mySBM, vertex.color = V(mySBM)$cluster)
+```
+
+## Tirage des poids
+
+```{r Gaussian weights}
+## random Gaussian weights
+mu <- 2; sigma <- 1
+mySBM <- set_edge_attr(mySBM, "weight", value = rnorm(gsize(mySBM), mu , sigma))
+```
+
+## Construction de la matrice de précision et de variance-covariance
+
+```{r laplacian precision}
+epsilon <- 1e-1
+Theta <- laplacian_matrix(mySBM, normalized = TRUE)
+Theta <- Theta + diag(epsilon, p, p)
+```
+
+```{r covariance}
+Sigma <- solve(Theta)
+```
+
+```{r plot}
+par(mfrow = c(2,2))
+Theta_plot <- as.matrix(Theta); diag(Theta_plot) <- NA
+Sigma_plot <- as.matrix(Sigma); diag(Sigma_plot) <- NA
+corrplot(Theta_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+corrplot(Sigma_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+hist(Theta_plot)
+hist(Sigma_plot)
+```
+
+# Premiers tests
+
+## Simulation des données 
+
+```{r}
+n_ind = 1000
+```
+
+```{r}
+dat = rmvnorm(n = n_ind, mean = rep(0, p), sigma = as.matrix(Sigma))
+```
+
+## Etude de convergence du glasso/GREMLIN 
+
+Sans prendre d'a priori sur le lambda.
+
+```{r}
+lambda_sequence = seq(10^-4, 10^-1, length.out = 5)
+n_iter = 10
+```
+
+```{r}
+classif = rep(1:K, sizes)
+```
+
+
+```{r}
+res = loopGLGR(lambda_seq = lambda_sequence, dat = dat, n_iter = n_iter, Omega_sim = Theta, classification = classif)
+```
+
+```{r}
+df_plot = res_sim(res = res, n_iter = n_iter, lambda_seq = lambda_sequence)
+```
+
+```{r, fig.height  = 8, fig.width=12}
+ggplot(data = df_plot, aes(x = variable, y = value, color = lambda, group = lambda)) +
+  geom_point(size = 3) + geom_line(size = 1) +
+  facet_grid(response~lambda, scales = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none", text = element_text(size = 20))
+```
+
+```{r, fig.height  = 8, fig.width=12}
+ggplot(data = df_plot[!df_plot$variable%in%c("GL0", "GRGL0"),], aes(x = variable, y = value, color = lambda, group = lambda)) +
+  geom_point(size = 3) + geom_line(size = 1) +
+  facet_grid(response~lambda, scales = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none", text = element_text(size = 20))
+```
+
+#  31/03/20
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(eval = TRUE)
+```
+
+## Reprise vignette rggm (@Julien)
+
+### Simple graphe SBM
+
+```{r}
+# library(devtools)
+# install_github("jchiquet/rggm")
+library(rggm)
+library(igraph)
+library(Matrix)
+library(corrplot)
+```
+
+```{r}
+nNodes  <- 50
+blockProp <- c(.5, .25, .25)   # group proportions
+nbBlock   <- length(blockProp) # number of blocks
+connectParam <- diag(.4, nbBlock) + 0.05 # connectivity matrix: affiliation network
+```
+
+```{r}
+## Graph Sampling
+mySBM <- rSBM(nNodes, connectParam, blockProp)
+## Graph plotting
+plot(mySBM, vertex.color = igraph::V(mySBM)$memberships)
+```
+
+```{r}
+as_adjacency_matrix(mySBM)[1:5,1:5]
+```
+
+```{r}
+## Sampling Gaussian weights
+mu_within   <- 4 ; sigma_within  <- .5
+mu_between  <- 2 ; sigma_between <- .5
+theta <- list()
+theta$mu    <- matrix(mu_between   , nbBlock, nbBlock); diag(theta$mu)    <- mu_within    # means
+theta$sigma <- matrix(sigma_between, nbBlock, nbBlock); diag(theta$sigma) <- sigma_within # sd
+```
+
+```{r}
+theta
+```
+
+```{r}
+mySBM <- rWeightSBM(mySBM, "gaussian", theta)
+hist(igraph::E(mySBM)$weight,  breaks = sqrt(igraph::gsize(mySBM)), freq = FALSE, xlab = "weights", main = "histogram of weights")
+```
+
+```{r}
+as_adjacency_matrix(mySBM, attr = "weight")[1:5,1:5]
+```
+
+### SBM pour matrice precision
+
+```{r}
+Omega <- graph2prec(mySBM, cond_var = rep(1, gorder(mySBM)))
+```
+
+```{r}
+Sigma <- solve(Omega)
+```
+
+```{r}
+par(mfrow = c(1,2))
+corrplot(as.matrix(Omega), is.corr = FALSE, tl.pos = "n", method = 'color', type = "upper", diag = FALSE)
+corrplot(as.matrix(Sigma), is.corr = FALSE, tl.pos = "n", method = 'color', type = "upper", diag = FALSE)
+```
+
+### Ajout idée inflater diagonale 
+
+```{r}
+Theta <- laplacian_matrix(mySBM)
+```
+
+```{r}
+Sigma <- solve(Theta)
+```
+
+```{r}
+par(mfrow = c(2,2))
+Theta_plot <- as.matrix(Theta); diag(Theta_plot) <- NA
+Sigma_plot <- as.matrix(Sigma); diag(Sigma_plot) <- NA
+corrplot(Theta_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+corrplot(Sigma_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+hist(Theta_plot)
+hist(Sigma_plot)
+```
+
+Pas très variable, Sigma... 
+
+```{r}
+epsilon <- 1e-2
+lambda  <- 1e-4 * epsilon
+iter <- 0
+while (!all(eigen(Theta, only.values = TRUE)$values > epsilon)) {
+  iter <- iter + 1
+  Theta <- Theta + lambda * diag(degree(mySBM))
+}
+cat("Il a fallu", iter, "itérations.")
+```
+
+```{r}
+Sigma <- solve(Theta)
+```
+
+```{r}
+par(mfrow = c(2,2))
+Theta_plot <- as.matrix(Theta); diag(Theta_plot) <- NA
+Sigma_plot <- as.matrix(Sigma); diag(Sigma_plot) <- NA
+corrplot(Theta_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+corrplot(Sigma_plot, method = "color", is.corr = FALSE, tl.pos = "n")
+hist(Theta_plot)
+hist(Sigma_plot)
+```
+
+Passer GREMLIN sur un sigma, bonne idée ? Pas énormément de variation, même si structure de block apparente. Un peu étrange.
+
+# Reprise tests avec nouvelles matrices
+
+```{r}
+source("Functions_boucles.R")
+library(R.utils)
+```
+
+```{r}
+# lambda_sequence = seq(10^-4, 10^-1, length.out = 10)
+lmax = max(abs(Sigma))
+lambda_sequence = c(10^-4)
+n_iter = 25
+```
+
+```{r}
+classif = V(mySBM)$memberships
+```
+
+```{r}
+res = loopGLGR(lambda_seq = lambda_sequence, 
+               Sigma = Sigma, n_iter = n_iter, Omega_sim = Theta, classification = classif, timeout = Inf)
+```
+
+```{r}
+df_plot = res_sim(res = res, n_iter = n_iter, lambda_seq = lambda_sequence)
+```
+
+```{r, fig.height  = 8, fig.width=12}
+ggplot(data = df_plot, aes(x = variable, y = value, color = lambda, group = lambda)) +
+  geom_point(size = 3) + geom_line(size = 1) +
+  facet_grid(response~lambda, scales = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.position="none", text = element_text(size = 20))
+```
+
+
+```{r, fig.widht = 12, fig.height = 5}
+res.alluv(res$`1e-04`$classif, classif = classif, title = "Lambda = 1e-04")
+```
+
+```{r}
+Omega_algo = res$`1e-04`$glasso[[length(res$`1e-04`$glasso)]]$wi ; diag(Omega_algo) = NA
+Classif_algo = res$`1e-04`$classif[[length(res$`1e-04`$classif)]]
+SideColors = c("red", "blue", "green", "cyan", "orange")[Classif_algo]
+heatmap.2(as.matrix(Omega_algo)[order(Classif_algo), order(Classif_algo)], dendrogram = "none", Rowv = FALSE, Colv = FALSE, trace="none", 
+          col = bluered(100), symm = TRUE, na.color = "black", ColSideColors = SideColors[order(Classif_algo)], RowSideColors = SideColors[order(Classif_algo)])
+```
+
+
