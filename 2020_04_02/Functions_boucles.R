@@ -15,30 +15,32 @@ library(reshape2)
 ############# FONCTION BOUCLE GREMLIN #############################
 
 loopGLGR = function(lambda_seq, dat = NULL, Sigma = NULL, Omega_sim, n_iter, classification, threshold =10^-6,
-                    timeout = Inf, diagonal = TRUE, min_pen = 0) {
+                    timeout = Inf, diagonal = TRUE, min_pen = 0, ncores = detectCores()) {
   listLambda = list()
   
   names(lambda_seq) = lambda_seq
-  # listLambda = mclapply(lambda_seq, FUN = function(lam){
+  listLambda = mclapply(lambda_seq, FUN = function(lam){
 
-    for(lam in lambda_seq){
+    # for(lam in lambda_seq){
     start_time = Sys.time()
     cat("** Lambda : ", lam, "\n")
     
-    # lam = 0.05005
-    # lam = 10^-4
+    # lam = lambda_seq[1]
+    # # lam = 10^-4
     # Sigma = Sigma
-    # dat = dat_pos[[1]]$X
+    # dat = as.matrix(X)
     # n_iter = 10
     # Omega_sim = Omega
-    # 
+    # ncores = 2
+    # diagonal = TRUE
+
     if(!is.null(dat)) Sigma = cov(dat)
     
     n = nrow(Sigma)
     if(!is.null(dat)) n = nrow(dat)
     
-    C = 1
-    if(!diagonal) C = matrix(1, nrow(Sigma), ncol(Sigma)) - diag(1, nrow(Sigma))
+    C = matrix(1, nrow(Sigma), ncol(Sigma)) 
+    if(!diagonal) C = C - diag(1, nrow(Sigma))
     
     
     list_res_glasso = list()
@@ -53,7 +55,8 @@ loopGLGR = function(lambda_seq, dat = NULL, Sigma = NULL, Omega_sim, n_iter, cla
     list_AIC = list()
     list_BIC = list()
     list_ICL = list()
-    exit_status = "Did all iterations"
+    exit_status1 = "Did all iterations"
+    exit_status = 1
     
     gl0 = gl1 = gr0 = NULL
     
@@ -63,7 +66,7 @@ loopGLGR = function(lambda_seq, dat = NULL, Sigma = NULL, Omega_sim, n_iter, cla
     
     list_res_glasso[[length(list_res_glasso)+1]] = gl0
     list_diff_sim[[length(list_diff_sim)+1]] = sum(abs(gl0$wi - Omega_sim))
-    list_logLik[[length(list_logLik)+1]] = -(n/2) * (sum(gl0$wi*Sigma) - determinant(gl0$wi, logarithm = TRUE)$modulus[1] +
+    list_logLik[[length(list_logLik)+1]] = (n/2) * (sum(gl0$wi*Sigma) - determinant(gl0$wi, logarithm = TRUE)$modulus[1] +
                                                        sum(Rho*C*abs(gl0$wi)) 
     )
     list_AIC[[length(list_AIC)+1]] = list_logLik[[length(list_logLik)]] + sum(gl0$wi!=0)
@@ -72,7 +75,8 @@ loopGLGR = function(lambda_seq, dat = NULL, Sigma = NULL, Omega_sim, n_iter, cla
     Net = defineNetwork(gl0$w, typeInter = "adj", rowFG = "Features", colFG = "Features")
     gr0 = tryCatch(expr = { 
       withTimeout( { multipartiteBM(list_Net = list(Net), namesFG = "Features",
-                                    v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 5, verbose = FALSE, initBM = FALSE, nbCores = 2) },
+                                    v_distrib = "gaussian", v_Kmin = 2, v_Kmax = 5, verbose = FALSE, 
+                                    initBM = FALSE, nbCores = 2) },
                    timeout = timeout) },
       error = function(e){ NULL })
     
@@ -88,7 +92,8 @@ loopGLGR = function(lambda_seq, dat = NULL, Sigma = NULL, Omega_sim, n_iter, cla
       
       distrib_groups = gr0$fittedModel[[1]]$paramEstim$list_theta$FeaturesFeatures
       set.seed(1992)
-      link1 = abs(distrib_groups$mean)/max(abs(distrib_groups$mean))
+      denom = ifelse(max(abs(distrib_groups$mean))!=0, max(abs(distrib_groups$mean)), 1)
+      link1 = abs(distrib_groups$mean)/denom
       link = link1[clustr, clustr]
       list_link[[length(list_link)+1]] = 1-link
       
@@ -104,11 +109,11 @@ loopGLGR = function(lambda_seq, dat = NULL, Sigma = NULL, Omega_sim, n_iter, cla
         list_res_glasso[[length(list_res_glasso)+1]] = gl1
         list_diff_sim[[length(list_diff_sim)+1]] = sum(abs(gl1$wi - Omega_sim))
         list_diff_iter_prec[[length(list_diff_iter_prec)+1]] = sum(abs(gl1$wi - list_res_glasso[[length(list_res_glasso) - 1 ]]$wi))
-        list_logLik[[length(list_logLik)+1]] = -(n/2) * (sum(gl1$wi*Sigma) - determinant(gl1$wi, logarithm = TRUE)$modulus[1] +
+        list_logLik[[length(list_logLik)+1]] = (n/2) * (sum(gl1$wi*Sigma) - determinant(gl1$wi, logarithm = TRUE)$modulus[1] +
                                                            sum(Rho*C*abs(gl1$wi)) 
         )
-        list_AIC[[length(list_AIC)+1]] = list_logLik[[length(list_logLik)]] + sum(gl1$wi!=0)
-        list_BIC[[length(list_BIC)+1]] = list_logLik[[length(list_logLik)]] + sum(gl1$wi!=0)*log(n/2)
+        list_AIC[[length(list_AIC)+1]] = list_logLik[[length(list_logLik)]] + sum(gl1$wi*C!=0)
+        list_BIC[[length(list_BIC)+1]] = list_logLik[[length(list_logLik)]] + sum(gl1$wi*C!=0)*log(n/2)
         
         ##### WHILE #####
         i = 0
@@ -159,16 +164,17 @@ loopGLGR = function(lambda_seq, dat = NULL, Sigma = NULL, Omega_sim, n_iter, cla
               list_diff_sim[[length(list_diff_sim)+1]] = sum(abs(gl$wi - Omega_sim))
               list_diff_iter_prec[[length(list_diff_iter_prec)+1]] = sum(abs(gl$wi - list_res_glasso[[length(list_res_glasso) - 1 ]]$wi))
               
-              list_logLik[[length(list_logLik)+1]] = -(n/2) * (sum(gl$wi*Sigma) - determinant(gl$wi, logarithm = TRUE)$modulus[1] +
-                                                                 sum(Rho*C*abs(gl$wi)) 
+              list_logLik[[length(list_logLik)+1]] = (n/2) * (sum(gl$wi*Sigma) - determinant(gl$wi, logarithm = TRUE)$modulus[1] +
+                                                                 sum(Rho*abs(gl$wi)) 
               )
-              list_AIC[[length(list_AIC)+1]] = list_logLik[[length(list_logLik)]] + sum(gl$wi!=0)
-              list_BIC[[length(list_BIC)+1]] = list_logLik[[length(list_logLik)]] + sum(gl$wi!=0)*log(n/2)
+              list_AIC[[length(list_AIC)+1]] = list_logLik[[length(list_logLik)]] + sum(gl$wi*C!=0)
+              list_BIC[[length(list_BIC)+1]] = list_logLik[[length(list_logLik)]] + sum(gl$wi*C!=0)*log(n/2)
               cat( " -- ")
               
             }else{
               cat(paste0("Glasso did not converge in interation ", i , "exiting from the loop.\n"))
-              exit_status = paste0("Exited from loop at iter ", i, " - Glasso did not converge")
+              exit_status1 = paste0("Exited from loop at iter ", i, " - Glasso did not converge")
+              exit_status = 0
               i = n_iter
             } # ENDIF any gl$wi == na
             
@@ -183,48 +189,30 @@ loopGLGR = function(lambda_seq, dat = NULL, Sigma = NULL, Omega_sim, n_iter, cla
             list_NID[[length(list_NID)+1]] = NA
             
             cat(paste0("GREMLIN did not converge in interation ", i , " exiting from the loop.\n"))
-            exit_status = paste0("Exited from loop at iter ", i, " - GREMLIN did not converge")
+            exit_status1 = paste0("Exited from loop at iter ", i, " - GREMLIN did not converge")
+            exit_status = 0
             i = n_iter
             
           }
           
-          if(list_diff_iter_prec[[length(list_diff_iter_prec)]]<=threshold) exit_status = paste0("Successfully converged at iter ", i)
+          if(list_diff_iter_prec[[length(list_diff_iter_prec)]]<=threshold) exit_status1 = paste0("Successfully converged at iter ", i)
           
         } # END WHILE 
         cat("\n")
       }else{
         cat("Glasso did not converge after first try of GREMLIN, did not entered the loop.\n")
-        paste0("Exited from algorithm before the loop - Glasso 1 did not converge")
+        exit_status1 = paste0("Exited from algorithm before the loop - Glasso 1 did not converge")
+        exit_status = 0
       }# ENDIF any gl1$wi == na
     }else{# ENDIF gr0 == NULL
       cat("GREMLIN did not converge on first try. Did not entered the loop.\n")
-      exit_status = paste0("Exited from algorithm before the loop - GREMLIN did not converge")
+      exit_status1 = paste0("Exited from algorithm before the loop - GREMLIN did not converge")
+      exit_status = 0
     }
     
     end_time = Sys.time()
     
-    listLambda[[length(listLambda) +1 ]] = list(
-      "glasso" = list_res_glasso,
-      "gremlin" = list_res_gremlin ,
-      "clusters" = list_clusters,
-      "classif" = list_classif,
-      "NID" = list_NID,
-      "diff_sim" = list_diff_sim,
-      "diff_prev_iter" = list_diff_iter_prec,
-      "link" = list_link,
-      "logLik" = list_logLik,
-      "AIC" = list_AIC,
-      "BIC" = list_BIC,
-      "ICL" = list_ICL,
-      "n_iter" = n_iter,
-      "dat" = dat,
-      "Sigma" = Sigma,
-      "Omega_sim" = Omega_sim,
-      "exit_status" = exit_status,
-      "time" = list("start" = start_time, "end" = end_time)
-    )
-    
-    # list(
+    # listLambda[[length(listLambda) +1 ]] = list(
     #   "glasso" = list_res_glasso,
     #   "gremlin" = list_res_gremlin ,
     #   "clusters" = list_clusters,
@@ -244,8 +232,30 @@ loopGLGR = function(lambda_seq, dat = NULL, Sigma = NULL, Omega_sim, n_iter, cla
     #   "exit_status" = exit_status,
     #   "time" = list("start" = start_time, "end" = end_time)
     # )
-  # }) # end mclapply
-  } # END FOR lambda sequence
+
+  list(
+    "glasso" = list_res_glasso,
+    "gremlin" = list_res_gremlin ,
+    "clusters" = list_clusters,
+    "classif" = list_classif,
+    "NID" = list_NID,
+    "diff_sim" = list_diff_sim,
+    "diff_prev_iter" = list_diff_iter_prec,
+    "link" = list_link,
+    "logLik" = list_logLik,
+    "AIC" = list_AIC,
+    "BIC" = list_BIC,
+    "ICL" = list_ICL,
+    "n_iter" = n_iter,
+    "dat" = dat,
+    "Sigma" = Sigma,
+    "Omega_sim" = Omega_sim,
+    "exit_status1" = exit_status1,
+    "exit_status" = exit_status,
+    "time" = list("start" = start_time, "end" = end_time)
+  )
+  }, mc.cores = ncores) # end mclapply
+  # } # END FOR lambda sequence
   names(listLambda) = lambda_seq
   return(listLambda)
 }
